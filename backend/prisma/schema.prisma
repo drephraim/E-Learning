@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// enum CognitiveState {
+//   BEGINNER
+//   INTERMEDIATE
+//   ADVANCED
+// }
+
+// enum LearningAidType {
+//   QUIZ
+//   FLASHCARD
+//   SUMMARY
+//   TASK
+// }
+
+// enum ProgressStatus {
+//   NOT_STARTED
+//   IN_PROGRESS
+//   COMPLETED
+// }
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  name            String?
+  passwordHash    String?
+  cognitiveState  String         @default("BEGINNER")
+  createdAt       DateTime       @default(now())
+  
+  courses         Course[]
+  progress        UserProgress[]
+  analytics       Analytics[]
+}
+
+model Course {
+  id               String         @id @default(uuid())
+  userId           String
+  title            String
+  targetDifficulty String
+  coverImage       String?
+  createdAt        DateTime       @default(now())
+
+  user             User           @relation(fields: [userId], references: [id])
+  modules          Module[]
+}
+
+model Module {
+  id               String         @id @default(uuid())
+  courseId         String
+  title            String
+  content          String?
+  youtubeUrl       String?
+  orderIndex       Int
+  difficultyWeight Int            @default(1)
+
+  course           Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  learningAids     LearningAid[]
+  userProgress     UserProgress[]
+}
+
+model LearningAid {
+  id       String          @id @default(uuid())
+  moduleId String
+  type     String
+  payload  Json
+
+  module   Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+}
+
+model UserProgress {
+  id                 String         @id @default(uuid())
+  userId             String
+  moduleId           String
+  status             String         @default("NOT_STARTED")
+  quizScore          Float?
+  timeSpentSeconds   Int            @default(0)
+  metadata           Json?
+  completedAt        DateTime?
+
+  user               User           @relation(fields: [userId], references: [id])
+  module             Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+}
+
+model Analytics {
+  id         String   @id @default(uuid())
+  userId     String
+  metricType String
+  value      Float
+  recordedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+}
