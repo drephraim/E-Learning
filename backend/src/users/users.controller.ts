@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Param, Post } from '@nestjs/common';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -23,5 +23,10 @@ export class UsersController {
   @Get(':id/analytics')
   async getUserAnalytics(@Param('id') id: string) {
     return this.usersService.getUserAnalytics(id);
+  }
+
+  @Post(':id/adapt')
+  async adaptCognitiveState(@Param('id') id: string, @Body() body?: { moduleId?: string; confidenceRating?: number }) {
+    return this.usersService.recalculateCognitiveState(id, body?.moduleId, body?.confidenceRating);
   }
 }

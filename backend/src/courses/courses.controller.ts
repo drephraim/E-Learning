@@ -13,13 +13,28 @@ export class CoursesController {
   }
 
   @Get('all')
-  async getAllCourses() {
-    return await this.coursesService.getAllCourses();
+  async getAllCourses(@Query('userId') userId?: string) {
+    return await this.coursesService.getAllCourses(userId);
   }
 
   @Get('user/:userId')
   async getUserCourses(@Param('userId') userId: string) {
     return await this.coursesService.getUserCourses(userId);
+  }
+
+  @Get('enrolled/:userId')
+  async getEnrolledCourses(@Param('userId') userId: string) {
+    return await this.coursesService.getEnrolledCourses(userId);
+  }
+
+  @Post(':id/enroll')
+  async enrollInCourse(@Param('id') id: string, @Body() dto: { userId: string }) {
+    return await this.coursesService.enrollInCourse(id, dto.userId);
+  }
+
+  @Post(':id/unenroll')
+  async unenrollCourse(@Param('id') id: string, @Body() dto: { userId: string }) {
+    return await this.coursesService.unenrollCourse(id, dto.userId);
   }
 
   @Get(':id')

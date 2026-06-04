@@ -8,23 +8,31 @@ export class AuthService {
   constructor(private prisma: PrismaService) {}
 
   async syncUserWithDatabase(dto: { uid: string; email: string; name: string }) {
-    this.logger.log(`Syncing Firebase user ${dto.email} (UID: ${dto.uid}) to Neon database...`);
+    this.logger.log(`Syncing Firebase user ${dto.email} (UID: ${dto.uid}) to database...`);
 
-    // We use Prisma's upsert functionality to either return the existing user or create a new one
-    const user = await this.prisma.user.upsert({
-      where: {
-        id: dto.uid, // Mapping Firebase UID directly to User.id
-      },
-      update: {
-        // If they already exist, we could update their name or leave it alone
-      },
-      create: {
-        id: dto.uid,
-        email: dto.email,
-        name: dto.name,
-      },
-    });
-
-    return { status: 'success', user };
+    try {
+      // Primary path: upsert by Firebase UID
+      const user = await this.prisma.user.upsert({
+        where: { id: dto.uid },
+        update: {},
+        create: {
+          id: dto.uid,
+          email: dto.email,
+          name: dto.name,
+        },
+      });
+      return { status: 'success', user };
+    } catch (err: any) {
+      // Handle unique constraint violation on email (e.g. same email, different UID)
+      if (err.code === 'P2002' && err.meta?.target?.includes('email')) {
+        this.logger.warn(`Email ${dto.email} already registered under a different UID. Fetching existing record.`);
+        const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+        if (existing) {
+          return { status: 'success', user: existing };
+        }
+      }
+      this.logger.error(`Failed to sync user ${dto.email}: ${err.message}`);
+      throw err;
+    }
   }
 }

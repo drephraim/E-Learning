@@ -33,10 +33,27 @@ model User {
   passwordHash    String?
   cognitiveState  String         @default("BEGINNER")
   createdAt       DateTime       @default(now())
-  
+
   courses         Course[]
   progress        UserProgress[]
   analytics       Analytics[]
+  topicStates     TopicState[]
+  courseProgress  UserCourseProgress[]
+  reviews         RatingReview[]
+}
+
+model TopicState {
+  id              String   @id @default(uuid())
+  userId          String
+  topic           String
+  cognitiveState  String   @default("BEGINNER")
+  emaScore        Float    @default(0)
+  totalQuizzes    Int      @default(0)
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topic])
 }
 
 model Course {
@@ -46,9 +63,13 @@ model Course {
   targetDifficulty String
   coverImage       String?
   createdAt        DateTime       @default(now())
+  averageRating    Float          @default(0)
+  totalRatings     Int            @default(0)
 
   user             User           @relation(fields: [userId], references: [id])
   modules          Module[]
+  ratings          RatingReview[]
+  userProgress     UserCourseProgress[]
 }
 
 model Module {
@@ -80,6 +101,7 @@ model UserProgress {
   moduleId           String
   status             String         @default("NOT_STARTED")
   quizScore          Float?
+  confidenceRating   Int?            // 1-5 confidence after quiz
   timeSpentSeconds   Int            @default(0)
   metadata           Json?
   completedAt        DateTime?
@@ -98,4 +120,36 @@ model Analytics {
   recordedAt DateTime @default(now())
 
   user       User     @relation(fields: [userId], references: [id])
+}
+
+model UserCourseProgress {
+  id                    String   @id @default(uuid())
+  userId                String
+  courseId              String
+  isCompleted           Boolean  @default(false)
+  completedAt           DateTime?
+  totalTimeSpentSeconds Int      @default(0)
+  averageQuizScore      Float?   // Percentage 0-100
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
+
+model RatingReview {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId  String
+  rating    Int      // 1-5
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
 }

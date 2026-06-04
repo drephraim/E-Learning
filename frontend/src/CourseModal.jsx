@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from './firebase';
+import { Sparkles, ArrowRight, ChevronDown } from 'lucide-react';
 import './CourseModal.css';
+import { API_BASE_URL } from './config';
+
+const difficultyMap = { 'Beginner': 'BEGINNER', 'Intermediate': 'INTERMEDIATE', 'Advanced': 'ADVANCED' };
 
 const CourseModal = ({ isOpen, onClose }) => {
   const [topic, setTopic] = useState("");
@@ -9,7 +13,24 @@ const CourseModal = ({ isOpen, onClose }) => {
   const [chapters, setChapters] = useState(5);
   const [includeYoutube, setIncludeYoutube] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [adaptiveLevel, setAdaptiveLevel] = useState(null);
   const navigate = useNavigate();
+
+  // Fetch user's adaptive level and pre-fill difficulty
+  useEffect(() => {
+    if (!isOpen || !auth.currentUser) return;
+    fetch(`${API_BASE_URL}/users/${auth.currentUser.uid}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.cognitiveState) {
+          const level = data.cognitiveState === 'BEGINNER' ? 'Beginner'
+            : data.cognitiveState === 'INTERMEDIATE' ? 'Intermediate' : 'Advanced';
+          setAdaptiveLevel(level);
+          setDifficulty(level);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -19,19 +40,19 @@ const CourseModal = ({ isOpen, onClose }) => {
 
     setIsGenerating(true);
     try {
-      const res = await fetch('http://localhost:3000/courses/generate', {
+      const res = await fetch(`${API_BASE_URL}/courses/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: auth.currentUser ? auth.currentUser.uid : 'temp-user-id',
           topic,
-          difficulty,
+          difficulty: difficultyMap[difficulty] || 'BEGINNER',
           chapters,
           includeYoutube
         })
       });
       const data = await res.json();
-      
+
       if (data.success) {
         onClose();
         navigate(`/course/${data.courseId}`);
@@ -52,72 +73,75 @@ const CourseModal = ({ isOpen, onClose }) => {
         <button className="modal-close" onClick={onClose}>✕</button>
 
         <div className="modal-header">
-          <div className="ai-badge">
-            <span className="badge-dot"></span> AI ENGINE V1.0
-          </div>
-          <h2 className="modal-title">Generate a Course</h2>
-          <p className="modal-subtitle">Define your learning path with neural precision.</p>
+          <h2 className="modal-title">Create a course</h2>
+          <p className="modal-subtitle">Tell us what you want to learn and we'll build it for you.</p>
         </div>
 
         <form className="modal-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>COURSE TITLE</label>
+            <label>What do you want to learn?</label>
             <input
               type="text"
-              placeholder="e.g., Advanced Quantum Mechanics"
+              placeholder="e.g. Machine Learning, Spanish, Photography"
               className="form-input"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               required
+              autoFocus
             />
           </div>
 
           <div className="form-row">
-            <div className="form-group half">
-              <label>DIFFICULTY LEVEL</label>
+            <div className="form-group">
+              <label>
+                Difficulty
+                {adaptiveLevel && (
+                  <span className="adaptive-hint">Your level: {adaptiveLevel}</span>
+                )}
+              </label>
               <div className="select-wrapper">
                 <select className="form-select" value={difficulty} onChange={e => setDifficulty(e.target.value)}>
                   <option value="Beginner">Beginner</option>
                   <option value="Intermediate">Intermediate</option>
                   <option value="Advanced">Advanced</option>
                 </select>
+                <ChevronDown size={16} className="select-icon" />
               </div>
             </div>
 
-            <div className="form-group half">
-              <label>CHAPTERS</label>
-              <div className="select-wrapper">
-                <select className="form-select" value={chapters} onChange={e => setChapters(Number(e.target.value))}>
-                  <option value={3}>3 Chapters</option>
-                  <option value={5}>5 Chapters</option>
-                  <option value={10}>10 Chapters</option>
-                </select>
-              </div>
+            <div className="form-group">
+              <label>Chapters</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                className="form-input"
+                value={chapters}
+                onChange={e => setChapters(Math.min(20, Math.max(1, Number(e.target.value))))}
+                style={{ width: '100%', height: '42px', boxSizing: 'border-box' }}
+              />
             </div>
           </div>
 
           <div className="form-group">
-            <div className="label-row">
-              <label>MULTIMEDIA INTEGRATION</label>
-            </div>
             <label className="toggle-container">
               <div className="toggle-label">
-                <span className="input-icon">▶</span>
-                <span>Include YouTube tutorial videos</span>
+                <span className="toggle-icon">▶</span>
+                <span>Include YouTube videos</span>
               </div>
               <div className="toggle-switch">
                 <input type="checkbox" checked={includeYoutube} onChange={e => setIncludeYoutube(e.target.checked)} />
-                <span className="slider"></span>
+                <span className="toggle-slider"></span>
               </div>
             </label>
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="btn-cancel" onClick={onClose} disabled={isGenerating}>
-              CANCEL
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={isGenerating}>
+              Cancel
             </button>
-            <button type="submit" className="btn-generate" disabled={isGenerating}>
-              <span className="sparkles">✨</span> {isGenerating ? "GENERATING..." : "GENERATE COURSE"}
+            <button type="submit" className="btn btn-primary" disabled={isGenerating || !topic}>
+              <Sparkles size={15} /> {isGenerating ? "Generating..." : "Generate Course"}
             </button>
           </div>
         </form>

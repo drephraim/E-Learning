@@ -8,6 +8,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import './Auth.css';
 
+import { API_BASE_URL } from './config';
+
 const Auth = () => {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
@@ -17,7 +19,7 @@ const Auth = () => {
 
   const syncUserWithBackend = async (firebaseUser) => {
     try {
-      const response = await fetch("http://localhost:3000/auth/sync", {
+      const response = await fetch(`${API_BASE_URL}/auth/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -27,11 +29,16 @@ const Auth = () => {
         })
       });
       if (!response.ok) {
-        throw new Error("Backend database sync failed.");
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `Server responded with ${response.status}`);
       }
       navigate('/dashboard');
     } catch (err) {
-      setError("Error linking to database: Make sure the backend server and database are running.");
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        setError("Cannot reach the backend server. Make sure it is running on port 3000.");
+      } else {
+        setError("Sign-in error: " + err.message);
+      }
       console.error(err);
     }
   };
@@ -68,7 +75,7 @@ const Auth = () => {
         <div className="auth-card">
           <div className="auth-header text-center">
             <div className="logo" style={{ marginBottom: '24px' }}>
-              Adapt<span className="text-gradient">AI</span>
+              Adaptive<span className="text-gradient">Learn</span>
             </div>
             <h2 className="auth-title">{isLogin ? "Welcome Back" : "Create an Account"}</h2>
             <p className="auth-subtitle">

@@ -1,68 +1,65 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { auth } from './firebase';
+import { BookOpen, BarChart2, Flame, Target, Cog, PlayCircle, FileText, Zap, ChevronRight, Lock, ArrowRight } from 'lucide-react';
 import CourseModal from './CourseModal';
 
 const DashboardMockup = () => (
   <div style={{
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
-    borderRadius: '16px',
-    padding: '24px',
+    background: 'var(--bg-card)',
+    borderRadius: '14px',
+    padding: '20px',
     fontFamily: 'Inter, sans-serif',
-    width: '100%',
-    minHeight: '340px',
-    position: 'relative',
-    overflow: 'hidden',
+    border: '1px solid var(--border)',
   }}>
-    {/* Glow orbs */}
-    <div style={{ position:'absolute', top:'-60px', right:'-60px', width:'200px', height:'200px', background:'radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%)', pointerEvents:'none' }} />
-    <div style={{ position:'absolute', bottom:'-40px', left:'-40px', width:'160px', height:'160px', background:'radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%)', pointerEvents:'none' }} />
-
     {/* Top bar */}
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-        <div style={{ width:'32px', height:'32px', borderRadius:'8px', background:'linear-gradient(135deg,#8b5cf6,#3b82f6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px' }}>⚡</div>
-        <span style={{ color:'#f8fafc', fontWeight:'700', fontSize:'0.95rem' }}>AdaptAI Dashboard</span>
+        <div style={{ width:'30px', height:'30px', borderRadius:'8px', background:'var(--orange)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Zap size={16} color="#0c0e12" />
+        </div>
+        <span style={{ color:'var(--text)', fontWeight:'700', fontSize:'0.9rem' }}>Your Dashboard</span>
       </div>
-      <div style={{ display:'flex', gap:'8px' }}>
-        {['#ef4444','#f59e0b','#22c55e'].map(c => <div key={c} style={{ width:'10px', height:'10px', borderRadius:'50%', background:c }} />)}
+      <div style={{ display:'flex', gap:'6px' }}>
+        {['#ef4444','#f59e0b','#22c55e'].map(c => <div key={c} style={{ width:'8px', height:'8px', borderRadius:'50%', background:c }} />)}
       </div>
     </div>
 
-    {/* Stat row */}
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'20px' }}>
+    {/* Stat cards - slightly uneven for human feel */}
+    <div style={{ display:'grid', gridTemplateColumns:'1.2fr 1fr 0.9fr', gap:'10px', marginBottom:'16px' }}>
       {[
-        { label:'Courses', value:'12', icon:'📚', color:'rgba(139,92,246,0.15)', border:'rgba(139,92,246,0.3)' },
-        { label:'Progress', value:'78%', icon:'📈', color:'rgba(59,130,246,0.15)', border:'rgba(59,130,246,0.3)' },
-        { label:'Streak', value:'14d', icon:'🔥', color:'rgba(245,158,11,0.15)', border:'rgba(245,158,11,0.3)' },
+        { label:'Courses', value:'12', icon: BookOpen, color:'var(--orange)', bg:'rgba(232,136,74,0.1)' },
+        { label:'Avg. Score', value:'78%', icon: BarChart2, color:'var(--blue)', bg:'rgba(74,156,232,0.1)' },
+        { label:'Streak', value:'14d', icon: Flame, color:'#f59e0b', bg:'rgba(245,158,11,0.1)' },
       ].map(s => (
-        <div key={s.label} style={{ background:s.color, border:`1px solid ${s.border}`, borderRadius:'12px', padding:'14px', textAlign:'center' }}>
-          <div style={{ fontSize:'1.4rem', marginBottom:'4px' }}>{s.icon}</div>
-          <div style={{ color:'#f8fafc', fontWeight:'700', fontSize:'1.1rem' }}>{s.value}</div>
-          <div style={{ color:'#94a3b8', fontSize:'0.7rem', marginTop:'2px' }}>{s.label}</div>
+        <div key={s.label} style={{ background:s.bg, border:`1px solid ${s.color}22`, borderRadius:'10px', padding:'12px', textAlign:'center' }}>
+          <s.icon size={16} color={s.color} style={{ marginBottom:'4px' }} />
+          <div style={{ color:'var(--text)', fontWeight:'700', fontSize:'1rem' }}>{s.value}</div>
+          <div style={{ color:'var(--text-muted)', fontSize:'0.7rem', marginTop:'2px' }}>{s.label}</div>
         </div>
       ))}
     </div>
 
     {/* Course list */}
-    <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
       {[
-        { title:'Machine Learning Fundamentals', progress:85, tag:'Advanced', color:'#8b5cf6' },
-        { title:'React & Modern Frontend', progress:62, tag:'Intermediate', color:'#3b82f6' },
-        { title:'Data Structures & Algorithms', progress:40, tag:'Beginner', color:'#22c55e' },
+        { title:'Machine Learning Fundamentals', progress:85, color:'var(--orange)' },
+        { title:'React & Modern Frontend', progress:62, color:'var(--blue)' },
+        { title:'Data Structures & Algorithms', progress:40, color:'var(--green)' },
       ].map(c => (
-        <div key={c.title} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'10px', padding:'12px 16px', display:'flex', alignItems:'center', gap:'12px' }}>
-          <div style={{ width:'36px', height:'36px', borderRadius:'8px', background:`linear-gradient(135deg, ${c.color}55, ${c.color}22)`, border:`1px solid ${c.color}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0 }}>🎯</div>
+        <div key={c.title} style={{ background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:'10px', padding:'12px 14px', display:'flex', alignItems:'center', gap:'12px' }}>
+          <div style={{ width:'34px', height:'34px', borderRadius:'8px', background:`${c.color}18`, border:`1px solid ${c.color}33`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <Target size={14} color={c.color} />
+          </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ color:'#f8fafc', fontSize:'0.8rem', fontWeight:'600', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.title}</div>
-            <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'6px' }}>
-              <div style={{ flex:1, height:'4px', background:'rgba(255,255,255,0.1)', borderRadius:'999px', overflow:'hidden' }}>
-                <div style={{ width:`${c.progress}%`, height:'100%', background:`linear-gradient(90deg, ${c.color}, ${c.color}aa)`, borderRadius:'999px', transition:'width 0.6s ease' }} />
+            <div style={{ color:'var(--text)', fontSize:'0.82rem', fontWeight:'600', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.title}</div>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'5px' }}>
+              <div style={{ flex:1, height:'3px', background:'var(--border)', borderRadius:'999px', overflow:'hidden' }}>
+                <div style={{ width:`${c.progress}%`, height:'100%', background:c.color, borderRadius:'999px' }} />
               </div>
-              <span style={{ color:'#94a3b8', fontSize:'0.65rem', flexShrink:0 }}>{c.progress}%</span>
+              <span style={{ color:'var(--text-muted)', fontSize:'0.65rem', flexShrink:0 }}>{c.progress}%</span>
             </div>
           </div>
-          <span style={{ background:`${c.color}22`, color:c.color, border:`1px solid ${c.color}44`, borderRadius:'999px', padding:'2px 8px', fontSize:'0.65rem', fontWeight:'600', flexShrink:0 }}>{c.tag}</span>
         </div>
       ))}
     </div>
@@ -73,7 +70,7 @@ const AuthPromptModal = ({ onClose }) => (
   <div
     style={{
       position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+      background: 'rgba(0,0,0,0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '24px',
     }}
@@ -82,69 +79,65 @@ const AuthPromptModal = ({ onClose }) => (
     <div
       onClick={e => e.stopPropagation()}
       style={{
-        background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%)',
-        border: '1px solid rgba(139,92,246,0.3)',
-        borderRadius: '24px',
-        padding: '48px 40px',
-        maxWidth: '440px',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: '18px',
+        padding: '40px 36px',
+        maxWidth: '420px',
         width: '100%',
         textAlign: 'center',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.1)',
-        position: 'relative',
       }}
     >
       <button
         onClick={onClose}
         style={{
-          position: 'absolute', top: '16px', right: '16px',
-          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)',
-          color: '#94a3b8', borderRadius: '50%', width: '32px', height: '32px',
-          cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'absolute', top: '14px', right: '14px',
+          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+          color: 'var(--text-muted)', borderRadius: '8px', width: '30px', height: '30px',
+          cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >✕</button>
 
       <div style={{
-        width: '64px', height: '64px', borderRadius: '16px',
-        background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+        width: '56px', height: '56px', borderRadius: '14px',
+        background: 'var(--orange)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '28px', margin: '0 auto 24px',
-        boxShadow: '0 8px 24px rgba(139,92,246,0.4)',
-      }}>🔒</div>
+        margin: '0 auto 20px',
+      }}><Lock size={24} color="#0c0e12" /></div>
 
-      <h2 style={{ color: '#f8fafc', fontSize: '1.5rem', fontWeight: '800', marginBottom: '12px' }}>
-        Sign In to Generate
+      <h2 style={{ color: 'var(--text)', fontSize: '1.35rem', fontWeight: '700', marginBottom: '10px' }}>
+        Sign in to continue
       </h2>
-      <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginBottom: '32px', lineHeight: '1.6' }}>
-        Create a free account or sign in to start building your personalized AI-powered course.
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginBottom: '28px', lineHeight: '1.6' }}>
+        You'll need an account to generate and save your personalized courses.
       </p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <Link
           to="/auth"
           style={{
-            display: 'block', padding: '14px 28px', borderRadius: '9999px',
-            background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-            color: 'white', fontWeight: '700', fontSize: '0.95rem',
-            boxShadow: '0 4px 14px rgba(139,92,246,0.4)',
-            transition: 'transform 0.2s',
+            display: 'flex', alignItems:'center', justifyContent:'center', gap:'8px',
+            padding: '13px 24px', borderRadius: '10px',
+            background: 'var(--orange)', color: '#0c0e12',
+            fontWeight: '700', fontSize: '0.92rem',
           }}
         >
-          Sign In / Create Account
+          Sign In / Create Account <ArrowRight size={16} />
         </Link>
         <button
           onClick={onClose}
           style={{
-            padding: '14px 28px', borderRadius: '9999px',
-            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-            color: '#94a3b8', fontWeight: '600', fontSize: '0.95rem', cursor: 'pointer',
+            padding: '13px 24px', borderRadius: '10px',
+            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+            color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.92rem', cursor: 'pointer',
           }}
         >
-          Maybe Later
+          Maybe later
         </button>
       </div>
 
-      <p style={{ marginTop: '24px', color: '#475569', fontSize: '0.8rem' }}>
-        Free forever · No credit card required
+      <p style={{ marginTop: '20px', color: 'var(--border)', fontSize: '0.78rem' }}>
+        Free forever · No credit card needed
       </p>
     </div>
   </div>
@@ -162,146 +155,160 @@ const Landing = () => {
     }
   };
 
-  const scrollToFeatures = () => {
-    document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+  const scrollTo = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <>
       <CourseModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       {showAuthPrompt && <AuthPromptModal onClose={() => setShowAuthPrompt(false)} />}
+
+      {/* Navbar */}
       <nav className="navbar">
         <div className="container navbar-container">
           <div className="logo">
-            Adapt<span className="text-gradient">AI</span>
+            Adaptive<span>Learn</span>
           </div>
           <div className="nav-links">
             <a href="#features" className="nav-link">Features</a>
-            <a href="#how-it-works" className="nav-link">How it Works</a>
+            <a href="#how-it-works" className="nav-link">How it works</a>
             <a href="#about" className="nav-link">About</a>
           </div>
-          <Link to="/auth" className="btn btn-secondary">Sign In</Link>
+          <Link to="/auth" className="btn btn-ghost">Sign In</Link>
         </div>
       </nav>
 
+      {/* Hero */}
       <header className="hero">
-        <div className="container hero-content text-center">
-          <div className="hero-badge">v1.0 is Live 🚀 Experience Next-Gen Learning</div>
-          <h1 className="hero-title">
-            Learn Your Way.<br />
-            Let AI Build Your <span className="text-gradient">Perfect Course.</span>
-          </h1>
-          <p className="hero-subtitle">
-            An adaptive learning ecosystem that creates personalized roadmaps, integrates video tutorials, and adjusts to your real-time cognitive performance.
-          </p>
-          <div className="hero-actions">
-            <button className="btn btn-primary" onClick={handleGenerateCourse}>Generate a Course</button>
-            <button className="btn btn-secondary" onClick={scrollToFeatures}>Explore Features</button>
-          </div>
-          
-          <div className="hero-image">
-            <DashboardMockup />
+        <div className="container">
+          <div className="hero-content">
+            <div className="hero-tag">
+              <Zap size={14} /> v1.0 is live
+            </div>
+            <h1 className="hero-title">
+              Learn your way.<br />
+              Let AI build your <em>perfect</em> course.
+            </h1>
+            <p className="hero-subtitle">
+              Tell us what you want to learn, and we'll put together a course that fits how you actually learn — not how a textbook thinks you should.
+            </p>
+            <div className="hero-actions">
+              <button className="btn btn-primary" onClick={handleGenerateCourse}>
+                Generate a Course <ArrowRight size={16} />
+              </button>
+              <button className="btn btn-secondary" onClick={() => scrollTo('features')}>
+                See how it works
+              </button>
+            </div>
+
+            <div className="hero-visual">
+              <div className="dash">
+                <DashboardMockup />
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
+      {/* Features */}
       <section id="features" className="section">
         <div className="container">
-          <h2 className="section-title text-center">Why Choose Us?</h2>
-          <p className="section-subtitle text-center">
-            Stop endlessly searching for scattered tutorials. Let artificial intelligence build your personalized learning journey from scratch.
+          <span className="section-label"><Cog size={14} /> Features</span>
+          <h2 className="section-title">Everything you need to actually learn</h2>
+          <p className="section-desc">
+            Most learning platforms throw videos at you and hope something sticks. We take a different approach.
           </p>
-          
+
           <div className="features-grid">
             <div className="feature-card">
-              <div className="feature-icon">🧠</div>
-              <h3 className="feature-title">Personalized Generation</h3>
-              <p className="feature-desc">
-                Select your topic, difficulty, and duration. Our Gemini-powered LLM instantly curates a structured curriculum just for you.
-              </p>
+              <div className="feature-icon-wrap orange"><BookOpen size={20} /></div>
+              <h3>Personalized courses</h3>
+              <p>Pick a topic, set your level, and our AI builds a curriculum that's actually suited to where you're starting from.</p>
             </div>
-            
+
             <div className="feature-card">
-              <div className="feature-icon">📈</div>
-              <h3 className="feature-title">Adaptive Engine</h3>
-              <p className="feature-desc">
-                Take assessments that measure your knowledge. The platform upgrades or downgrades content difficulty dynamically to match your pace.
-              </p>
+              <div className="feature-icon-wrap blue"><BarChart2 size={20} /></div>
+              <h3>Adapts as you go</h3>
+              <p>Struggling with a concept? The system dials things back. Flying through? It'll ramp up the challenge automatically.</p>
             </div>
-            
+
             <div className="feature-card">
-              <div className="feature-icon">🎥</div>
-              <h3 className="feature-title">Curated Video Sync</h3>
-              <p className="feature-desc">
-                Engage with embedded, highly-relevant external tutorials pulled directly from YouTube to compliment your reading material.
-              </p>
+              <div className="feature-icon-wrap blue"><PlayCircle size={20} /></div>
+              <h3>Curated videos</h3>
+              <p>We pull in relevant YouTube tutorials that actually explain things well — no more digging through search results.</p>
             </div>
-            
+
             <div className="feature-card">
-              <div className="feature-icon">📝</div>
-              <h3 className="feature-title">AI Learning Aids</h3>
-              <p className="feature-desc">
-                Reinforce retention with automated flashcards, chapter summaries, and targeted quizzes generated specifically for your current module.
-              </p>
+              <div className="feature-icon-wrap green"><FileText size={20} /></div>
+              <h3>Built-in study tools</h3>
+              <p>Flashcards, summaries, and quizzes generated for each module so you can test yourself as you learn.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="how-it-works" className="section" style={{ background: 'var(--bg-color)', position: 'relative' }}>
+      {/* How it works */}
+      <section id="how-it-works" className="section" style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
         <div className="container">
-          <h2 className="section-title text-center">How It Works</h2>
-          <p className="section-subtitle text-center">
-            Four simple steps to transform the way you learn forever.
+          <span className="section-label"><Zap size={14} /> Process</span>
+          <h2 className="section-title">How it works</h2>
+          <p className="section-desc" style={{ marginBottom: '48px' }}>
+            Four steps from "I want to learn X" to actually understanding it.
           </p>
-          
-          <div className="steps-container">
+
+          <div className="steps">
             <div className="step">
-              <div className="step-number">1</div>
-              <div className="step-content">
-                <h3>Input Preferences</h3>
-                <p>Enter a subject, select your current baseline knowledge level, and choose how long you want the course to be.</p>
+              <div className="step-num">1</div>
+              <div className="step-body">
+                <h3>Tell us what you want to learn</h3>
+                <p>Enter a subject, your current level, and how long you want the course to run. Takes about 30 seconds.</p>
               </div>
             </div>
-            
+
             <div className="step">
-              <div className="step-number">2</div>
-              <div className="step-content">
-                <h3>AI Generates Curriculum</h3>
-                <p>The system builds a comprehensive roadmap consisting of structured modules, curated videos, and contextual reading materials within seconds.</p>
+              <div className="step-num">2</div>
+              <div className="step-body">
+                <h3>AI builds your curriculum</h3>
+                <p>We generate a structured course with modules, video recommendations, and reading materials tailored to you.</p>
               </div>
             </div>
-            
+
             <div className="step">
-              <div className="step-number">3</div>
-              <div className="step-content">
-                <h3>Learn & Engage</h3>
-                <p>Dive into the material and challenge yourself with AI-generated flashcards, summaries, and mini-tasks.</p>
+              <div className="step-num">3</div>
+              <div className="step-body">
+                <h3>Learn and practice</h3>
+                <p>Work through modules at your own pace. Use the built-in flashcards and quizzes to reinforce what you're learning.</p>
               </div>
             </div>
-            
+
             <div className="step">
-              <div className="step-number">4</div>
-              <div className="step-content">
-                <h3>Adaptive Optimization</h3>
-                <p>Take module quizzes. The Adaptive Engine analyzes your performance and dynamically tweaks the difficulty of upcoming modules.</p>
+              <div className="step-num">4</div>
+              <div className="step-body">
+                <h3>We adjust as you go</h3>
+                <p>Based on quiz results, we tweak upcoming modules — easier if you're stuck, harder if you're breezing through.</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Footer */}
       <footer>
         <div className="container">
-          <div className="footer-logo">Adapt<span className="text-gradient">AI</span></div>
-          <div className="footer-links">
-            <a href="#">About Us</a>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Contact Support</a>
+          <div className="footer-inner">
+            <div className="footer-left">
+              <div className="footer-logo">Adaptive<span>Learn</span></div>
+              <p>© 2026 AdaptiveLearn. All rights reserved.</p>
+              <p className="footer-note">Built for University of Energy and Natural Resources (Group 5B)</p>
+            </div>
+            <div className="footer-right">
+              <a href="#">About</a>
+              <a href="#">Privacy</a>
+              <a href="#">Terms</a>
+              <a href="#">Support</a>
+            </div>
           </div>
-          <p>© 2026 AdaptAI Learning Platform. All rights reserved.</p>
-          <p style={{ marginTop: '12px', fontSize: '0.85rem' }}>Designed for University of Energy and Natural Resources (Group 5B)</p>
         </div>
       </footer>
     </>
