@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "npm install --prefix frontend && npm run build --prefix frontend"
+  },
   "devDependencies": {
     "prisma": "^7.5.0"
   }
