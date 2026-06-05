@@ -11,6 +11,7 @@ import jsPDF from 'jspdf';
 import ReactStars from 'react-stars';
 import { auth } from './firebase';
 import { API_BASE_URL } from './config';
+import './CourseView.css';
 
 export default function CourseView() {
   const { id } = useParams();
@@ -279,7 +280,7 @@ export default function CourseView() {
   const taskAid = activeModule?.learningAids?.find(a => a.type === 'TASK');
 
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)', fontFamily: 'Inter' }}>
+    <div className="courseview-layout">
 
       {/* Confetti for completion */}
       {isCompleted && <Confetti recycle={false} numberOfPieces={500} />}
@@ -415,19 +416,19 @@ export default function CourseView() {
       )}
 
       {/* Course Sidebar */}
-      <div style={{ width: '320px', borderRight: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', background: 'rgba(15, 23, 42, 0.4)' }}>
-        <div style={{ padding: '24px', borderBottom: '1px solid var(--card-border)' }}>
-          <Link to="/dashboard" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 16, display: 'inline-block' }}>
+      <div className="course-sidebar">
+        <div className="course-sidebar-header">
+          <Link to="/dashboard" className="back-dash-link">
             &larr; Back to Dashboard
           </Link>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{course.title}</h2>
-          <span style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', borderRadius: 99, fontWeight: 600, display: 'inline-block', marginTop: 12 }}>
+          <h2 className="course-sidebar-title">{course.title}</h2>
+          <span className="course-difficulty-badge">
             {course.targetDifficulty}
           </span>
         </div>
         
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-          <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Course Modules</h3>
+        <div className="course-modules-container">
+          <h3 className="modules-list-title">Course Modules</h3>
           {course.modules.map((mod, idx) => {
             const moduleStatus = courseProgress?.moduleStatus?.find(m => m.moduleId === mod.id);
             const isComplete = moduleStatus?.isComplete;
@@ -435,23 +436,14 @@ export default function CourseView() {
               <div 
                 key={mod.id} 
                 onClick={() => isEnrolled && setActiveModuleIndex(idx)}
-                style={{
-                  padding: '16px',
-                  borderRadius: '12px',
-                  cursor: isEnrolled ? 'pointer' : 'not-allowed',
-                  marginBottom: '8px',
-                  background: idx === activeModuleIndex && isEnrolled ? 'var(--card-bg)' : 'transparent',
-                  border: idx === activeModuleIndex && isEnrolled ? '1px solid var(--accent-primary)' : '1px solid transparent',
-                  opacity: isEnrolled ? 1 : 0.6,
-                  transition: 'all 0.2s',
-                }}
+                className={`chapter-node ${idx === activeModuleIndex && isEnrolled ? 'active' : ''} ${!isEnrolled ? 'locked' : ''}`}
               >
-                <div style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 700, marginBottom: 4 }}>
+                <div className="chapter-num">
                   {isComplete ? '✓ ' : ''}Chapter {idx + 1}
                 </div>
-                <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="chapter-title-row">
                   <span>{mod.title}</span>
-                  {!isEnrolled && <span style={{ fontSize: '0.85rem' }}>🔒</span>}
+                  {!isEnrolled && <span>🔒</span>}
                 </div>
               </div>
             );
@@ -460,97 +452,56 @@ export default function CourseView() {
       </div>
 
       {/* Main Content */}
-      <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '40px 60px', position: 'relative' }}>
+      <div ref={contentRef} className="course-main-content">
         
         {/* Progress Bar */}
         {courseProgress && isEnrolled && (
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Course Progress</span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{courseProgress.progressPercentage}%</span>
+          <div className="course-progress-section">
+            <div className="progress-header-row">
+              <span className="progress-title-label">Course Progress</span>
+              <span className="progress-pct-label">{courseProgress.progressPercentage}%</span>
             </div>
-            <div style={{ width: '100%', height: 8, background: 'var(--bg-elevated)', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{
-                width: `${courseProgress.progressPercentage}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))',
-                borderRadius: 99,
-                transition: 'width 0.5s ease'
-              }} />
+            <div className="progress-track-bg">
+              <div className="progress-bar-glow" style={{ width: `${courseProgress.progressPercentage}%` }} />
             </div>
           </div>
         )}
 
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <div className="course-content-wrapper">
           {!isEnrolled ? (
             /* Course Overview Page */
             <div style={{ animation: 'fadeIn 0.3s ease' }}>
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.1))',
-                border: '1px solid var(--card-border)',
-                borderRadius: 24,
-                padding: '40px',
-                marginBottom: 32,
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  position: 'absolute', top: -50, right: -50, width: 200, height: 200,
-                  borderRadius: '50%', background: 'radial-gradient(circle, var(--accent-primary) 0%, transparent 70%)',
-                  opacity: 0.15, pointerEvents: 'none'
-                }} />
+              <div className="course-promo-card">
+                <div className="promo-glow-overlay" />
                 
-                <span style={{
-                  fontSize: '0.8rem', padding: '6px 12px', background: 'rgba(139, 92, 246, 0.2)',
-                  color: '#c084fc', borderRadius: 99, fontWeight: 700, textTransform: 'uppercase',
-                  letterSpacing: 1, display: 'inline-block', marginBottom: 16
-                }}>
+                <span className="course-promo-difficulty">
                   {course.targetDifficulty} Level
                 </span>
                 
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: 16, lineHeight: 1.2 }}>{course.title}</h1>
-                <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                <h1 className="course-promo-title">{course.title}</h1>
+                <p className="course-promo-desc">
                   Unlock this adaptive curriculum to learn step-by-step. This course features {course.modules.length} lessons with interactive quizzes, flashcards, summaries, and practical tasks customized for you.
                 </p>
               </div>
 
-              <div style={{ marginBottom: 40 }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="syllabus-timeline-section">
+                <h2 className="syllabus-title-main">
                   📖 Course Syllabus ({course.modules.length} Chapters)
                 </h2>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="syllabus-list">
                   {course.modules.map((mod, idx) => (
-                    <div 
-                      key={mod.id} 
-                      style={{
-                        padding: '20px 24px',
-                        background: 'var(--card-bg)',
-                        border: '1px solid var(--card-border)',
-                        borderRadius: 16,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 20,
-                        transition: 'all 0.2s',
-                        opacity: 0.85
-                      }}
-                    >
-                      <div style={{
-                        width: 36, height: 36, borderRadius: '50%',
-                        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-                        color: 'white', display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', fontWeight: 700, fontSize: '0.95rem',
-                        flexShrink: 0
-                      }}>
+                    <div key={mod.id} className="syllabus-item-card">
+                      <div className="syllabus-item-num">
                         {idx + 1}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <h4 style={{ margin: '0 0 6px 0', fontSize: '1.1rem', fontWeight: 600 }}>{mod.title}</h4>
-                        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                      <div className="syllabus-item-info">
+                        <h4 className="syllabus-item-title">{mod.title}</h4>
+                        <p className="syllabus-item-desc">
                           Click enroll to unlock lesson content, quizzes, and tasks for this chapter.
                         </p>
                       </div>
-                      <span style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>🔒</span>
+                      <span style={{ fontSize: '1.2rem' }}>🔒</span>
                     </div>
                   ))}
                 </div>
@@ -608,17 +559,17 @@ export default function CourseView() {
               <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '8px' }}>{activeModule.title}</h1>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>Chapter {activeModuleIndex + 1} of {course.modules.length}</p>
 
-              <div style={{ display: 'flex', gap: 24, marginBottom: 40, borderBottom: '1px solid var(--card-border)', paddingBottom: 0 }}>
+              <div className="futuristic-tabs-nav">
                  <button 
                    onClick={() => setCurrentTab('lesson')}
-                   style={{ background: 'transparent', border: 'none', color: currentTab === 'lesson' ? 'white' : 'var(--text-secondary)', fontWeight: currentTab === 'lesson' ? 700 : 500, fontSize: '1.05rem', cursor: 'pointer', borderBottom: currentTab === 'lesson' ? '3px solid var(--accent-primary)' : '3px solid transparent', paddingBottom: 12, marginBottom: -1, transition: 'all 0.2s' }}
+                   className={`futuristic-tab-btn ${currentTab === 'lesson' ? 'active' : ''}`}
                  >
                    Lesson
                  </button>
                  {quizAid && (
                    <button 
                      onClick={() => setCurrentTab('quiz')}
-                     style={{ background: 'transparent', border: 'none', color: currentTab === 'quiz' ? 'white' : 'var(--text-secondary)', fontWeight: currentTab === 'quiz' ? 700 : 500, fontSize: '1.05rem', cursor: 'pointer', borderBottom: currentTab === 'quiz' ? '3px solid var(--accent-primary)' : '3px solid transparent', paddingBottom: 12, marginBottom: -1, transition: 'all 0.2s' }}
+                     className={`futuristic-tab-btn ${currentTab === 'quiz' ? 'active' : ''}`}
                    >
                      Quiz
                    </button>
@@ -626,7 +577,7 @@ export default function CourseView() {
                  {flashcardAid && (
                    <button 
                      onClick={() => setCurrentTab('flashcards')}
-                     style={{ background: 'transparent', border: 'none', color: currentTab === 'flashcards' ? 'white' : 'var(--text-secondary)', fontWeight: currentTab === 'flashcards' ? 700 : 500, fontSize: '1.05rem', cursor: 'pointer', borderBottom: currentTab === 'flashcards' ? '3px solid var(--accent-primary)' : '3px solid transparent', paddingBottom: 12, marginBottom: -1, transition: 'all 0.2s' }}
+                     className={`futuristic-tab-btn ${currentTab === 'flashcards' ? 'active' : ''}`}
                    >
                      Flashcards
                    </button>
@@ -634,7 +585,7 @@ export default function CourseView() {
                  {summaryAid && (
                    <button 
                      onClick={() => setCurrentTab('summary')}
-                     style={{ background: 'transparent', border: 'none', color: currentTab === 'summary' ? 'white' : 'var(--text-secondary)', fontWeight: currentTab === 'summary' ? 700 : 500, fontSize: '1.05rem', cursor: 'pointer', borderBottom: currentTab === 'summary' ? '3px solid var(--accent-primary)' : '3px solid transparent', paddingBottom: 12, marginBottom: -1, transition: 'all 0.2s' }}
+                     className={`futuristic-tab-btn ${currentTab === 'summary' ? 'active' : ''}`}
                    >
                      Summary
                    </button>
@@ -642,7 +593,7 @@ export default function CourseView() {
                  {taskAid && (
                    <button 
                      onClick={() => setCurrentTab('tasks')}
-                     style={{ background: 'transparent', border: 'none', color: currentTab === 'tasks' ? 'white' : 'var(--text-secondary)', fontWeight: currentTab === 'tasks' ? 700 : 500, fontSize: '1.05rem', cursor: 'pointer', borderBottom: currentTab === 'tasks' ? '3px solid var(--accent-primary)' : '3px solid transparent', paddingBottom: 12, marginBottom: -1, transition: 'all 0.2s' }}
+                     className={`futuristic-tab-btn ${currentTab === 'tasks' ? 'active' : ''}`}
                    >
                      Tasks
                    </button>
@@ -652,7 +603,7 @@ export default function CourseView() {
               {currentTab === 'lesson' && (
                 <>
                   {activeModule.youtubeUrl && (
-                    <div style={{ marginBottom: '40px', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--card-border)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', aspectRatio: '16/9' }}>
+                    <div className="video-wrapper-futuristic">
                        <iframe 
                          width="100%" 
                          height="100%" 
@@ -717,10 +668,10 @@ export default function CourseView() {
                  />
               )}
               
-              <div style={{ marginTop: '80px', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--card-border)', paddingTop: 32 }}>
+              <div className="nav-footer-controls">
                  <button 
                    onClick={() => setActiveModuleIndex( Math.max(0, activeModuleIndex - 1) )}
-                   style={{ padding: '12px 24px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', color: 'white', borderRadius: 8, cursor: activeModuleIndex === 0 ? 'not-allowed' : 'pointer', opacity: activeModuleIndex === 0 ? 0.5 : 1 }}
+                   className="chapter-nav-btn"
                    disabled={activeModuleIndex === 0}
                  >
                    &larr; Previous Chapter
@@ -731,18 +682,9 @@ export default function CourseView() {
                    <button 
                      onClick={handleCompleteCourse}
                      disabled={!courseProgress?.isCourseComplete}
-                     style={{ 
-                       padding: '12px 24px', 
-                       background: courseProgress?.isCourseComplete ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--bg-elevated)', 
-                       border: courseProgress?.isCourseComplete ? 'none' : '1px solid var(--border)', 
-                       color: courseProgress?.isCourseComplete ? 'white' : 'var(--text-muted)', 
-                       borderRadius: 8, 
-                       cursor: courseProgress?.isCourseComplete ? 'pointer' : 'not-allowed', 
-                       fontWeight: 600, 
-                       fontSize: '1rem',
-                       transition: 'all 0.2s'
-                     }}
+                     className="chapter-nav-btn primary"
                      title={courseProgress?.isCourseComplete ? "Complete Course" : "To complete the course, you must score at least 3/5 on all quizzes and finish all tasks."}
+                     style={courseProgress?.isCourseComplete ? { background: 'linear-gradient(135deg, #10b981, #059669)' } : {}}
                    >
                      ✓ Complete Course
                    </button>
@@ -751,7 +693,8 @@ export default function CourseView() {
                  {isCompleted && (
                    <button 
                      onClick={() => setShowCompletionModal(true)}
-                     style={{ padding: '12px 24px', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', border: 'none', color: 'white', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+                     className="chapter-nav-btn primary"
+                     style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)' }}
                    >
                      🎉 View Completion
                    </button>
@@ -759,7 +702,7 @@ export default function CourseView() {
 
                  <button 
                    onClick={() => setActiveModuleIndex( Math.min(course.modules.length - 1, activeModuleIndex + 1) )}
-                   style={{ padding: '12px 24px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', border: 'none', color: 'white', borderRadius: 8, cursor: activeModuleIndex === course.modules.length - 1 ? 'not-allowed' : 'pointer', opacity: activeModuleIndex === course.modules.length - 1 ? 0.5 : 1, fontWeight: 600 }}
+                   className="chapter-nav-btn primary"
                    disabled={activeModuleIndex === course.modules.length - 1}
                  >
                    Next Chapter &rarr;

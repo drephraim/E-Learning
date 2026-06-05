@@ -59,6 +59,11 @@ body {
   body {
     zoom: 0.8; /* Scales the pages like window resized to 80% */
   }
+  .dashboard-layout,
+  .profile-layout,
+  .auth-wrapper {
+    min-height: 125vh !important; /* Math: 100vh / 0.8 zoom factor to fill screen height perfectly */
+  }
 }
 
 a {
