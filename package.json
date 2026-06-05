@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "build": "npx prisma generate --schema=backend/prisma/schema.prisma && npx prisma db push --force-reset --schema=backend/prisma/schema.prisma && npm install --prefix frontend && npm run build --prefix frontend"
+    "build": "npx prisma generate --schema=backend/prisma/schema.prisma && npx prisma db push --schema=backend/prisma/schema.prisma && npm install --prefix frontend && npm run build --prefix frontend"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
