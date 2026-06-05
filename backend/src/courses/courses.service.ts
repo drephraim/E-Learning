@@ -36,59 +36,10 @@ export class CoursesService {
     }
   }
 
-  private async askLLMForTheme(topic: string): Promise<any> {
-    const themePrompt = `You are a professional graphic designer designing a premium course cover card theme.
-The course topic is: "${topic}".
-Generate a cohesive modern styling theme for this topic. Output ONLY a valid JSON object matching this structure:
-{
-  "gradStart": "hsl(h, s%, l%)", // a dark background gradient start matching the topic (keep it dark, e.g. lightness 12-20%)
-  "gradEnd": "hsl(h, s%, l%)",   // a dark background gradient end matching the topic (keep it dark, e.g. lightness 5-10%)
-  "accent": "#HEX",              // a vibrant accent color
-  "accent2": "#HEX",             // a matching secondary accent color
-  "tag": "SHORT TAG",            // 1-3 words topic tag in uppercase (e.g. "ANCIENT ROME", "QUANTUM PHYSICS")
-  "icon": "SVG markup"           // Beautiful, detailed raw SVG elements (like path, rect, circle, line, ellipse) that draw the icon inside a 150x120 canvas (with X from 10 to 140, and Y from 10 to 110). Do NOT wrap with parent <svg> or <g> tags.
-}
-Do not write any markdown codeblock headers or explanations. Output ONLY the raw JSON.`;
-
-    try {
-      this.logger.log(`Querying Groq for custom cover theme for topic: "${topic}"`);
-      const completion = await this.callGroqWithRetry({
-        messages: [{ role: 'user', content: themePrompt }],
-        model: 'llama-3.1-8b-instant',
-        response_format: { type: 'json_object' }
-      });
-      const text = completion.choices[0]?.message?.content || '{}';
-      const parsed = JSON.parse(text);
-      if (parsed.gradStart && parsed.gradEnd && parsed.accent && parsed.accent2 && parsed.tag && parsed.icon) {
-        return parsed;
-      }
-    } catch (err) {
-      this.logger.warn(`Groq cover theme generation failed: ${err.message}. Trying Gemini...`);
-      try {
-        if (process.env.GEMINI_API_KEY) {
-          const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-          const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: themePrompt }] }],
-            generationConfig: { responseMimeType: "application/json" }
-          });
-          const text = result.response.text();
-          const parsed = JSON.parse(text);
-          if (parsed.gradStart && parsed.gradEnd && parsed.accent && parsed.accent2 && parsed.tag && parsed.icon) {
-            return parsed;
-          }
-        }
-      } catch (geminiErr) {
-        this.logger.error(`Gemini cover theme generation failed: ${geminiErr.message}`);
-      }
-    }
-    return null;
-  }
-
-  private async generateCourseCover(topic: string): Promise<string> {
+  private generateCourseCover(topic: string, coverTheme?: any): string {
     try {
       this.logger.log(`Generating custom WOW-factor themed vector cover for: "${topic}"`);
-      const customTheme = await this.askLLMForTheme(topic);
-      const svg = this.generateProceduralSVG(topic, customTheme);
+      const svg = this.generateProceduralSVG(topic, coverTheme);
       const base64 = Buffer.from(svg).toString('base64');
       return `data:image/svg+xml;base64,${base64}`;
     } catch (err) {
@@ -420,6 +371,23 @@ Do not write any markdown codeblock headers or explanations. Output ONLY the raw
     this.logger.log(`Generation settings: difficulty=${dto.difficulty}, chapters=${dto.chapters}, youtube=${dto.includeYoutube}`);
 
     try {
+      // Ensure user exists in the database to prevent foreign key errors (e.g. if database was wiped)
+      try {
+        const userExists = await this.prisma.user.findUnique({ where: { id: dto.userId } });
+        if (!userExists) {
+          this.logger.log(`User ${dto.userId} not found in database. Auto-creating user record.`);
+          await this.prisma.user.create({
+            data: {
+              id: dto.userId,
+              email: `${dto.userId}@placeholder.com`,
+              name: 'Student User'
+            }
+          });
+        }
+      } catch (e) {
+        this.logger.warn(`Could not verify or auto-create user ${dto.userId}: ${e.message}`);
+      }
+
       // 0. Fetch per-topic cognitive state, fallback to global
       let cognitiveState = 'BEGINNER';
       try {
@@ -452,12 +420,24 @@ Do not write any markdown codeblock headers or explanations. Output ONLY the raw
 
       this.logger.log(`Adaptive engine: user cognitiveState=${cognitiveState} → applying adaptive prompt adjustments`);
 
-      // 1. Generate Syllabus Outline
+      // 1. Generate Syllabus Outline & Cover Theme
       const outlinePrompt = `Act as an expert curriculum designer. The user wants to learn "${dto.topic}" at a "${dto.difficulty}" level.
     ADAPTIVE ENGINE NOTE: ${adaptiveNote}
     Create a syllabus with exactly ${dto.chapters} chapters that is appropriate for a ${cognitiveState} learner.
+    Also, act as a professional graphic designer and design a premium card cover theme matching this course.
     Return strictly JSON in this format: 
-    { "courseTitle": "String", "chapters": [{ "title": "String", "searchQuery": "Detailed search query for web facts", "youtubeSearchQuery": "Highly specific query to find a matching educational video for this SPECIFIC chapter title" }] }`;
+    { 
+      "courseTitle": "String", 
+      "coverTheme": {
+        "gradStart": "hsl(h, s%, l%)", // dark background gradient start (lightness 12-20%)
+        "gradEnd": "hsl(h, s%, l%)",   // dark background gradient end (lightness 5-10%)
+        "accent": "#HEX",              // vibrant accent color
+        "accent2": "#HEX",             // matching secondary accent color
+        "tag": "SHORT TAG",            // 1-3 words topic tag in uppercase
+        "icon": "SVG markup"           // Beautiful, detailed raw SVG elements (like path, rect, circle, line, ellipse) that draw the icon inside a 150x120 canvas (with X from 10 to 140, and Y from 10 to 110). Do NOT wrap with parent <svg> or <g> tags.
+      },
+      "chapters": [{ "title": "String", "searchQuery": "Detailed search query for web facts", "youtubeSearchQuery": "Highly specific query to find a matching educational video for this SPECIFIC chapter title" }] 
+    }`;
     
       const outlineCompletion = await this.callGroqWithRetry({
         messages: [{ role: 'user', content: outlinePrompt }],
@@ -467,8 +447,8 @@ Do not write any markdown codeblock headers or explanations. Output ONLY the raw
       const outlineText = outlineCompletion.choices[0]?.message?.content || '{}';
       const outlineData = JSON.parse(outlineText);
 
-      // 2. Generate Course Cover (using the generated courseTitle for specific themed icons/colors)
-      const coverImage = await this.generateCourseCover(outlineData.courseTitle || dto.topic);
+      // 2. Generate Course Cover (instantaneous sync call using the coverTheme from LLM)
+      const coverImage = this.generateCourseCover(outlineData.courseTitle || dto.topic, outlineData.coverTheme);
       
       // 2. Multi-phase generation for each chapter
       const modulesData = [];
