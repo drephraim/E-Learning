@@ -57,7 +57,7 @@ body {
 
 @media (min-width: 1024px) {
   body {
-    zoom: 0.7; /* Scales the pages like window resized to 70% */
+    zoom: 0.8; /* Scales the pages like window resized to 80% */
   }
 }
 
