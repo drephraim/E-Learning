@@ -25,6 +25,25 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: 14px; /* Sleek, scaled-down typography default */
+}
+
+@media (min-width: 1400px) {
+  html {
+    font-size: 15px; /* Restrict scaling slightly on extra wide screens */
+  }
+}
+
+@media (max-width: 1024px) {
+  html {
+    font-size: 13.5px;
+  }
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 13px;
+  }
 }
 
 body {
@@ -148,7 +167,7 @@ img {
 
 /* ── Hero ── */
 .hero {
-  padding: 180px 0 100px;
+  padding: 140px 0 80px; /* Reduced from 180px/100px for a more compact hero */
   position: relative;
 }
 
@@ -235,7 +254,7 @@ img {
 
 /* ── Sections ── */
 .section {
-  padding: 96px 0;
+  padding: 64px 0; /* Reduced from 96px for more compact spacing */
 }
 
 .section-label {
@@ -419,7 +438,13 @@ footer {
 }
 
 @media (max-width: 768px) {
-  .hero-title { font-size: 2.4rem; }
+  .hero {
+    padding: 80px 0 40px; /* Further reduced for mobile view */
+  }
+  .section {
+    padding: 40px 0; /* Further reduced for mobile view */
+  }
+  .hero-title { font-size: 2.2rem; }
   .features-grid { grid-template-columns: 1fr; }
   .nav-links { display: none; }
   .dashboard-stats { grid-template-columns: 1fr 1fr; }

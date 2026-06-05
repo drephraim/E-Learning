@@ -36,10 +36,59 @@ export class CoursesService {
     }
   }
 
+  private async askLLMForTheme(topic: string): Promise<any> {
+    const themePrompt = `You are a professional graphic designer designing a premium course cover card theme.
+The course topic is: "${topic}".
+Generate a cohesive modern styling theme for this topic. Output ONLY a valid JSON object matching this structure:
+{
+  "gradStart": "hsl(h, s%, l%)", // a dark background gradient start matching the topic (keep it dark, e.g. lightness 12-20%)
+  "gradEnd": "hsl(h, s%, l%)",   // a dark background gradient end matching the topic (keep it dark, e.g. lightness 5-10%)
+  "accent": "#HEX",              // a vibrant accent color
+  "accent2": "#HEX",             // a matching secondary accent color
+  "tag": "SHORT TAG",            // 1-3 words topic tag in uppercase (e.g. "ANCIENT ROME", "QUANTUM PHYSICS")
+  "icon": "SVG markup"           // Beautiful, detailed raw SVG elements (like path, rect, circle, line, ellipse) that draw the icon inside a 150x120 canvas (with X from 10 to 140, and Y from 10 to 110). Do NOT wrap with parent <svg> or <g> tags.
+}
+Do not write any markdown codeblock headers or explanations. Output ONLY the raw JSON.`;
+
+    try {
+      this.logger.log(`Querying Groq for custom cover theme for topic: "${topic}"`);
+      const completion = await this.callGroqWithRetry({
+        messages: [{ role: 'user', content: themePrompt }],
+        model: 'llama-3.1-8b-instant',
+        response_format: { type: 'json_object' }
+      });
+      const text = completion.choices[0]?.message?.content || '{}';
+      const parsed = JSON.parse(text);
+      if (parsed.gradStart && parsed.gradEnd && parsed.accent && parsed.accent2 && parsed.tag && parsed.icon) {
+        return parsed;
+      }
+    } catch (err) {
+      this.logger.warn(`Groq cover theme generation failed: ${err.message}. Trying Gemini...`);
+      try {
+        if (process.env.GEMINI_API_KEY) {
+          const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+          const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: themePrompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+          });
+          const text = result.response.text();
+          const parsed = JSON.parse(text);
+          if (parsed.gradStart && parsed.gradEnd && parsed.accent && parsed.accent2 && parsed.tag && parsed.icon) {
+            return parsed;
+          }
+        }
+      } catch (geminiErr) {
+        this.logger.error(`Gemini cover theme generation failed: ${geminiErr.message}`);
+      }
+    }
+    return null;
+  }
+
   private async generateCourseCover(topic: string): Promise<string> {
     try {
       this.logger.log(`Generating custom WOW-factor themed vector cover for: "${topic}"`);
-      const svg = this.generateProceduralSVG(topic);
+      const customTheme = await this.askLLMForTheme(topic);
+      const svg = this.generateProceduralSVG(topic, customTheme);
       const base64 = Buffer.from(svg).toString('base64');
       return `data:image/svg+xml;base64,${base64}`;
     } catch (err) {
@@ -54,11 +103,11 @@ export class CoursesService {
    * Generates a topic-aware premium vector SVG cover with modern typography,
    * glassmorphism components, and matching tech icons.
    */
-  private generateProceduralSVG(topic: string): string {
+  private generateProceduralSVG(topic: string, customTheme?: any): string {
     const t = topic.toLowerCase();
     
     // Default fallback theme (Creative/Other)
-    let theme = {
+    let theme = customTheme || {
       gradStart: 'hsl(330, 50%, 15%)',
       gradEnd: 'hsl(340, 60%, 7%)',
       accent: '#FF5E62',
@@ -72,6 +121,17 @@ export class CoursesService {
         </g>
       `
     };
+
+    if (customTheme) {
+      // Ensure the custom icon is wrapped in the standard scale/translate group if it's raw elements
+      if (theme.icon && !theme.icon.trim().startsWith('<g') && !theme.icon.trim().startsWith('<svg')) {
+        theme.icon = `
+          <g stroke="url(#accentGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(520, 140) scale(1.7)">
+            ${theme.icon}
+          </g>
+        `;
+      }
+    } else {
 
     if (t.includes('html') || t.includes('markup') || t.includes('web design')) {
       theme = {
@@ -252,6 +312,7 @@ export class CoursesService {
         `
       };
     }
+  }
 
     // Wrap title text into lines
     const wrapTitleText = (text: string): string[] => {
@@ -391,10 +452,7 @@ export class CoursesService {
 
       this.logger.log(`Adaptive engine: user cognitiveState=${cognitiveState} → applying adaptive prompt adjustments`);
 
-      // 1. Generate Course Cover
-      const coverImage = await this.generateCourseCover(dto.topic);
-
-      // 2. Generate Syllabus Outline
+      // 1. Generate Syllabus Outline
       const outlinePrompt = `Act as an expert curriculum designer. The user wants to learn "${dto.topic}" at a "${dto.difficulty}" level.
     ADAPTIVE ENGINE NOTE: ${adaptiveNote}
     Create a syllabus with exactly ${dto.chapters} chapters that is appropriate for a ${cognitiveState} learner.
@@ -408,6 +466,9 @@ export class CoursesService {
       });
       const outlineText = outlineCompletion.choices[0]?.message?.content || '{}';
       const outlineData = JSON.parse(outlineText);
+
+      // 2. Generate Course Cover (using the generated courseTitle for specific themed icons/colors)
+      const coverImage = await this.generateCourseCover(outlineData.courseTitle || dto.topic);
       
       // 2. Multi-phase generation for each chapter
       const modulesData = [];

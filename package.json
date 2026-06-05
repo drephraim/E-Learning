@@ -1,8 +1,24 @@
 {
   "scripts": {
-    "build": "npm install --prefix frontend && npm run build --prefix frontend"
+    "build": "npx prisma generate --schema=backend/prisma/schema.prisma && npx prisma db push --force-reset --schema=backend/prisma/schema.prisma && npm install --prefix frontend && npm run build --prefix frontend"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@nestjs/common": "^11.1.17",
+    "@nestjs/core": "^11.1.17",
+    "@nestjs/platform-express": "^11.1.17",
+    "@prisma/client": "^6.19.2",
+    "axios": "^1.13.6",
+    "cors": "^2.8.6",
+    "groq-sdk": "^1.1.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
-    "prisma": "^7.5.0"
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "prisma": "^6.19.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2"
   }
 }

@@ -61,3 +61,5 @@ venv/
 .venv/
 env/
 .env_python/
+
+.vercel
