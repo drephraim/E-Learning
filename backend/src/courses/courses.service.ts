@@ -36,13 +36,49 @@ export class CoursesService {
     }
   }
 
-  private generateCourseCover(topic: string, coverTheme?: any): string {
+  private async generateGeminiSVG(topic: string): Promise<string> {
+    try {
+      this.logger.log(`Querying Gemini to generate custom SVG cover for: "${topic}"`);
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const prompt = `You are a professional graphic designer. Create a premium, modern, topic-aware vector SVG cover for a course on "${topic}".
+The SVG must have a viewBox="0 0 800 450" and width="800" height="450". It should use a dark theme matching a modern tech website (e.g. dark background gradients: #0c0e12, #161922, etc.).
+It must include:
+1. A beautiful, harmonized background gradient.
+2. Subtle background patterns (like tech grid lines, dots, or abstract overlapping circles with low opacity).
+3. A stylized glassmorphic card on the left side (with a semi-transparent dark fill and a glowing border) that displays the course title "${topic}" in white bold typography (use system-ui, Inter, sans-serif font).
+4. A beautiful, colored, detailed vector logo or abstract tech illustration representing "${topic}" on the right side. For example, if it's CSS, render a stylized shield. If it's React, render orbits. Use vibrant gradient fills and glowing strokes.
+
+Return ONLY valid, well-formed SVG code starting with <svg> and ending with </svg>. Do not wrap it in markdown code blocks or write any explanations. Just start with <svg> and end with </svg>.`;
+
+      const result = await model.generateContent(prompt);
+      let svgText = result.response.text().trim();
+      
+      // Clean up markdown wrapper if any
+      if (svgText.startsWith('```')) {
+        svgText = svgText.replace(/^```(xml|svg)?\n/, '').replace(/\n```$/, '').trim();
+      }
+      
+      if (svgText.includes('<svg') && svgText.includes('</svg>')) {
+        return svgText;
+      }
+      throw new Error("Invalid SVG response from Gemini");
+    } catch (err: any) {
+      this.logger.warn(`Failed to generate SVG using Gemini: ${err.message}.`);
+      return null;
+    }
+  }
+
+  private async generateCourseCover(topic: string, coverTheme?: any): Promise<string> {
     try {
       this.logger.log(`Generating custom WOW-factor themed vector cover for: "${topic}"`);
-      const svg = this.generateProceduralSVG(topic, coverTheme);
+      let svg = await this.generateGeminiSVG(topic);
+      if (!svg) {
+        this.logger.log(`Falling back to procedural SVG generation for: "${topic}"`);
+        svg = this.generateProceduralSVG(topic, coverTheme);
+      }
       const base64 = Buffer.from(svg).toString('base64');
       return `data:image/svg+xml;base64,${base64}`;
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Failed to generate course cover for "${topic}": ${err.message}`);
       const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450"><rect width="800" height="450" fill="#111"/></svg>`;
       const base64 = Buffer.from(fallbackSvg).toString('base64');
@@ -478,7 +514,7 @@ export class CoursesService {
             data: {
               id: dto.userId,
               email: `${dto.userId}@placeholder.com`,
-              name: 'Student User'
+              name: dto.userId === 'system-bot' ? 'Daily Recommendation' : 'Student User'
             }
           });
         }
@@ -546,7 +582,7 @@ export class CoursesService {
       const outlineData = JSON.parse(outlineText);
 
       // 2. Generate Course Cover (instantaneous sync call using the coverTheme from LLM)
-      const coverImage = this.generateCourseCover(outlineData.courseTitle || dto.topic, outlineData.coverTheme);
+      const coverImage = await this.generateCourseCover(outlineData.courseTitle || dto.topic, outlineData.coverTheme);
       
       // 2. Parallel generation for each chapter
       const chapterPromises = outlineData.chapters.map(async (chapter: any, index: number) => {
@@ -1178,5 +1214,90 @@ Output STRICTLY valid JSON exactly matching this format:
     scoredCandidates.sort((a, b) => b.score - a.score || b.cand.createdAt.getTime() - a.cand.createdAt.getTime());
 
     return scoredCandidates.slice(0, 5).map(sc => sc.cand);
+  }
+
+  async getDailyRecommendationTopic(): Promise<string> {
+    const recentCourses = await this.prisma.course.findMany({
+      where: { userId: 'system-bot' },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: { title: true }
+    });
+    const recentTitles = recentCourses.map(c => c.title).join(', ');
+    
+    try {
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const prompt = `Suggest a single, highly engaging, trending computer science, software engineering, design, or technical topic for a daily featured tutorial course.
+Avoid these recently recommended topics/titles: [${recentTitles}].
+Return ONLY the title of the topic (1 to 4 words), without punctuation, markdown wrappers, or explanation. For example: "Websockets", "Tailwind CSS", "Docker Fundamentals", "Rust Programming".`;
+      const result = await model.generateContent(prompt);
+      const topic = result.response.text().trim().replace(/['"`.?!]/g, '');
+      return topic || "TypeScript Advanced Patterns";
+    } catch (err: any) {
+      this.logger.warn(`Failed to suggest daily topic with Gemini: ${err.message}. Falling back to default.`);
+      return "Next.js App Router";
+    }
+  }
+
+  async getDailyRecommendation(userId?: string): Promise<{ course: any, isEnrolled: boolean }> {
+    // 1. Find the latest course created by system-bot
+    let dailyCourse = await this.prisma.course.findFirst({
+      where: { userId: 'system-bot' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        modules: {
+          orderBy: { orderIndex: 'asc' }
+        }
+      }
+    });
+
+    const isExpired = dailyCourse 
+      ? (new Date().getTime() - new Date(dailyCourse.createdAt).getTime() > 24 * 60 * 60 * 1000)
+      : true;
+
+    if (isExpired) {
+      this.logger.log(`Daily recommended course is expired or missing. Generating a new one...`);
+      const topic = await this.getDailyRecommendationTopic();
+      
+      const genResult = await this.generateCourse({
+        userId: 'system-bot',
+        topic,
+        difficulty: 'INTERMEDIATE',
+        chapters: 5,
+        includeYoutube: true
+      });
+
+      if (genResult.success && genResult.course) {
+        dailyCourse = await this.prisma.course.findUnique({
+          where: { id: genResult.courseId },
+          include: {
+            modules: {
+              orderBy: { orderIndex: 'asc' }
+            }
+          }
+        });
+      } else {
+        this.logger.error(`Failed to lazy-generate daily recommended course: ${genResult.message}`);
+      }
+    }
+
+    if (!dailyCourse) {
+      return { course: null, isEnrolled: false };
+    }
+
+    let isEnrolled = false;
+    if (userId) {
+      const enrollment = await this.prisma.userCourseProgress.findUnique({
+        where: {
+          userId_courseId: {
+            userId,
+            courseId: dailyCourse.id
+          }
+        }
+      });
+      isEnrolled = !!enrollment;
+    }
+
+    return { course: dailyCourse, isEnrolled };
   }
 }

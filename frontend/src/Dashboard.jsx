@@ -22,6 +22,76 @@ const WelcomeBanner = ({ onOpenModal }) => (
   </div>
 );
 
+const DailyRecommendationLoader = () => (
+  <div className="daily-recommendation-banner loading">
+    <div className="recommendation-content">
+      <div className="recommendation-info">
+        <div className="skeleton skeleton-badge"></div>
+        <div className="skeleton skeleton-title"></div>
+        <div className="skeleton skeleton-meta"></div>
+        <div className="skeleton skeleton-desc"></div>
+        <div className="skeleton skeleton-btn"></div>
+      </div>
+      <div className="recommendation-preview-container">
+        <div className="skeleton skeleton-img"></div>
+      </div>
+    </div>
+  </div>
+);
+
+const DailyRecommendationBanner = ({ course, isEnrolled, onEnroll }) => {
+  if (!course) return null;
+
+  const rawImage = course.coverImage && !course.coverImage.includes('unsplash.com') ? course.coverImage : '';
+  const coverSrc = rawImage
+    ? (rawImage.startsWith('http') || rawImage.startsWith('data:') ? rawImage : `${API_BASE_URL}${rawImage}`)
+    : '';
+
+  const totalModules = course.modules?.length || 0;
+
+  return (
+    <div className="daily-recommendation-banner">
+      <div className="recommendation-badge">
+        <Sparkles size={12} /> DAILY FEATURED COURSE
+      </div>
+      <div className="recommendation-content">
+        <div className="recommendation-info">
+          <h2 className="recommendation-title">{course.title}</h2>
+          <div className="recommendation-meta">
+            <span className="recommendation-tag difficulty">{course.targetDifficulty}</span>
+            <span className="recommendation-tag chapters">
+              <BookOpen size={13} /> {totalModules} Chapters
+            </span>
+          </div>
+          <p className="recommendation-desc">
+            A brand-new course automatically curated by our AI engine to level up your skills today. Dive right in!
+          </p>
+          <button className="recommendation-btn" onClick={() => onEnroll(course.id, isEnrolled)}>
+            {isEnrolled ? (
+              <>
+                <Play size={16} fill="currentColor" /> Continue Learning
+              </>
+            ) : (
+              <>
+                <Plus size={16} /> Enroll & Start Course
+              </>
+            )}
+          </button>
+        </div>
+        <div className="recommendation-preview-container">
+          {coverSrc ? (
+            <img src={coverSrc} alt={course.title} className="recommendation-preview-img" />
+          ) : (
+            <div className="recommendation-preview-placeholder">
+              <BookOpen size={48} color="var(--text-muted)" />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StatsGrid = ({ enrolledCount, completedCount, timeSpentHours, createdCount }) => (
   <div className="stats-grid">
     <div className="stat-card">
@@ -169,6 +239,9 @@ export default function Dashboard() {
   const [createdCourses, setCreatedCourses] = useState([]);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [stats, setStats] = useState({ enrolledCount: 0, completedCount: 0, timeSpentHours: 0 });
+  const [dailyRec, setDailyRec] = useState(null);
+  const [isDailyEnrolled, setIsDailyEnrolled] = useState(false);
+  const [loadingDaily, setLoadingDaily] = useState(true);
 
   const handleOpenModal = () => setIsModalOpen(true);
 
@@ -198,6 +271,50 @@ export default function Dashboard() {
           });
         })
         .catch(err => console.error("Could not fetch user stats", err));
+    }
+  };
+
+  const fetchDailyRecommendation = (uid) => {
+    const userId = uid || auth.currentUser?.uid;
+    if (userId) {
+      setLoadingDaily(true);
+      fetch(`${API_BASE_URL}/courses/daily-recommendation?userId=${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.course) {
+            setDailyRec(data.course);
+            setIsDailyEnrolled(data.isEnrolled);
+          }
+          setLoadingDaily(false);
+        })
+        .catch(err => {
+          console.error("Could not fetch daily recommendation", err);
+          setLoadingDaily(false);
+        });
+    }
+  };
+
+  const handleEnrollDaily = (courseId, alreadyEnrolled) => {
+    if (!auth.currentUser) return;
+    if (alreadyEnrolled) {
+      navigate(`/course/${courseId}`);
+    } else {
+      fetch(`${API_BASE_URL}/courses/${courseId}/enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: auth.currentUser.uid })
+      })
+        .then(res => res.json())
+        .then(() => {
+          fetchDailyRecommendation(auth.currentUser.uid);
+          fetchCourses();
+          fetchStats();
+          navigate(`/course/${courseId}`);
+        })
+        .catch(err => {
+          console.error("Enrollment failed", err);
+          alert("Failed to enroll in daily course.");
+        });
     }
   };
 
@@ -233,10 +350,12 @@ export default function Dashboard() {
   useEffect(() => {
     fetchCourses();
     fetchStats();
+    fetchDailyRecommendation();
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         fetchCourses();
         fetchStats();
+        fetchDailyRecommendation(user.uid);
       }
     });
     return () => unsubscribe();
@@ -244,11 +363,22 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-layout">
-      <CourseModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchCourses(); fetchStats(); }} />
+      <CourseModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchCourses(); fetchStats(); fetchDailyRecommendation(); }} />
       <Sidebar onOpenModal={handleOpenModal} />
       <main className="dashboard-main">
         <div className="dashboard-content">
           <WelcomeBanner onOpenModal={handleOpenModal} />
+
+          {loadingDaily ? (
+            <DailyRecommendationLoader />
+          ) : (
+            <DailyRecommendationBanner 
+              course={dailyRec} 
+              isEnrolled={isDailyEnrolled} 
+              onEnroll={handleEnrollDaily} 
+            />
+          )}
+
           <StatsGrid 
             enrolledCount={stats.enrolledCount}
             completedCount={stats.completedCount}

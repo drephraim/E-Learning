@@ -27,6 +27,11 @@ export class CoursesController {
     return await this.coursesService.getEnrolledCourses(userId);
   }
 
+  @Get('daily-recommendation')
+  async getDailyRecommendation(@Query('userId') userId?: string) {
+    return await this.coursesService.getDailyRecommendation(userId);
+  }
+
   @Post(':id/enroll')
   async enrollInCourse(@Param('id') id: string, @Body() dto: { userId: string }) {
     return await this.coursesService.enrollInCourse(id, dto.userId);
