@@ -431,12 +431,6 @@
 .pb-section { padding-bottom: 40px; }
 
 @media (max-width: 1024px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
   .dashboard-main {
     margin-left: 0;
     padding: 20px 20px 80px 20px !important;
@@ -667,13 +661,6 @@
 }
 
 @media (max-width: 1024px) {
-  .recommendation-preview-container {
-    width: 260px;
-    height: 146px;
-  }
-}
-
-@media (max-width: 768px) {
   .daily-recommendation-banner {
     padding: 24px;
   }

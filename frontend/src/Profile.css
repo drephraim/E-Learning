@@ -501,7 +501,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .profile-main {
     margin-left: 0;
     padding: 24px 24px 80px 24px !important;
