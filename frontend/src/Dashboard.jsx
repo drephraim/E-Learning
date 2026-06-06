@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import CourseModal from './CourseModal';
 import { auth } from './firebase';
 import Sidebar from './Sidebar';
@@ -277,6 +277,7 @@ const Section = ({ title, courses, emptyMsg, actionLabel = "Create Course", onAc
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [createdCourses, setCreatedCourses] = useState([]);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
@@ -286,6 +287,14 @@ export default function Dashboard() {
   const [loadingDaily, setLoadingDaily] = useState(true);
 
   const handleOpenModal = () => setIsModalOpen(true);
+
+  useEffect(() => {
+    if (location.state?.openCreateModal) {
+      handleOpenModal();
+      // Clear location state to prevent modal reopening on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   const fetchCourses = () => {
     if (auth.currentUser) {

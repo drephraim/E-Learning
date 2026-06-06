@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from './firebase';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Sidebar from './Sidebar';
-import { Shield, BarChart3, ArrowLeft, Save, Mail, Trophy, Flame, Target, Hourglass, Activity, BookOpen, Award } from 'lucide-react';
+import { Shield, BarChart3, ArrowLeft, Save, Mail, Trophy, Flame, Target, Hourglass, Activity, BookOpen, Award, LogOut } from 'lucide-react';
 import ReactStars from 'react-stars';
 import './Profile.css';
 import { API_BASE_URL } from './config';
@@ -99,6 +99,15 @@ export default function Profile() {
       } catch (error) {
         setMessage('Error: ' + error.message);
       }
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      navigate('/auth');
+    } catch (err) {
+      console.error('Sign out failed', err);
     }
   };
 
@@ -464,6 +473,16 @@ export default function Profile() {
                     {message}
                   </div>
                 )}
+              </div>
+
+              <div className="settings-card" style={{ borderTop: '2px solid rgba(239, 68, 68, 0.4)' }}>
+                <h3 style={{ color: '#f87171' }}>Sign Out</h3>
+                <p className="settings-desc">
+                  Sign out of your AdaptiveLearn session on this device.
+                </p>
+                <button className="btn-premium btn-premium-secondary" onClick={handleSignOut} style={{ borderColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}>
+                  <LogOut size={16} /> Sign Out
+                </button>
               </div>
             </div>
           )}
