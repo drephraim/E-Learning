@@ -4,7 +4,7 @@ import CourseModal from './CourseModal';
 import { auth } from './firebase';
 import Sidebar from './Sidebar';
 import './Dashboard.css';
-import { Sparkles, BookOpen, Award, Clock, TrendingUp, Play, Trash2, Plus } from 'lucide-react';
+import { Sparkles, BookOpen, Award, Clock, TrendingUp, Play, Trash2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { API_BASE_URL } from './config';
 
 // --- Sub-components ---
@@ -207,29 +207,71 @@ const CourseCard = ({ course, onDelete }) => {
   );
 };
 
-const Section = ({ title, courses, emptyMsg, actionLabel = "Create Course", onActionClick, onDeleteCourse }) => (
-  <div className="dashboard-section">
-    <div className="section-header">
-      <h2 className="section-title">{title}</h2>
-    </div>
-    {courses && courses.length > 0 ? (
-      <div className="course-row-wrapper">
-        <div className="course-row">
-          {courses.map(course => (
+const Section = ({ title, courses, emptyMsg, actionLabel = "Create Course", onActionClick, onDeleteCourse }) => {
+  const [currentPage, setCurrentPage] = useState(0);
+
+  if (!courses || courses.length === 0) {
+    return (
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h2 className="section-title">{title}</h2>
+        </div>
+        <EmptyStateCard
+          message={emptyMsg}
+          actions={[
+            { label: actionLabel, primary: true, icon: <Plus size={16} />, onClick: onActionClick }
+          ]}
+        />
+      </div>
+    );
+  }
+
+  const itemsPerPage = 6;
+  const totalPages = Math.ceil(courses.length / itemsPerPage);
+  const activePage = Math.min(currentPage, Math.max(0, totalPages - 1));
+
+  const startIndex = activePage * itemsPerPage;
+  const visibleCourses = courses.slice(startIndex, startIndex + itemsPerPage);
+
+  return (
+    <div className="dashboard-section">
+      <div className="section-header">
+        <h2 className="section-title">{title}</h2>
+        {totalPages > 1 && (
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn-nav"
+              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+              disabled={activePage === 0}
+              title="Previous Page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="pagination-indicator">
+              Page {activePage + 1} of {totalPages}
+            </span>
+            <button
+              className="pagination-btn-nav"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+              disabled={activePage === totalPages - 1}
+              title="Next Page"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="course-grid-wrapper">
+        <div className="course-grid-paginated">
+          {visibleCourses.map(course => (
             <CourseCard key={course.id} course={course} onDelete={onDeleteCourse} />
           ))}
         </div>
       </div>
-    ) : (
-      <EmptyStateCard
-        message={emptyMsg}
-        actions={[
-          { label: actionLabel, primary: true, icon: <Plus size={16} />, onClick: onActionClick }
-        ]}
-      />
-    )}
-  </div>
-);
+    </div>
+  );
+};
 
 // --- Main Dashboard ---
 
