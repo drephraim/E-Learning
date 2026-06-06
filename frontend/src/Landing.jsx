@@ -183,9 +183,6 @@ const Landing = () => {
       <header className="hero">
         <div className="container">
           <div className="hero-content">
-            <div className="hero-tag">
-              <Zap size={14} /> v1.0 is live
-            </div>
             <h1 className="hero-title">
               Learn your way.<br />
               Let AI build your <em>perfect</em> course.
