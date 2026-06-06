@@ -376,13 +376,13 @@
 
 /* Course Card */
 .course-card {
-  width: 280px;
+  width: 100%;
+  max-width: 280px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   transition: border-color 0.15s ease;
-  flex-shrink: 0;
   cursor: pointer;
 }
 
@@ -595,9 +595,6 @@
   .stats-grid {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-  }
-  .course-card {
-    width: 240px;
   }
 }
 
@@ -854,9 +851,9 @@
 
 .course-grid-paginated {
   display: grid;
-  grid-template-columns: repeat(3, 280px);
-  justify-content: center;
-  gap: 24px;
+  grid-template-columns: repeat(5, 1fr);
+  justify-items: center;
+  gap: 20px;
 }
 
 /* Pagination Controls */
@@ -900,16 +897,30 @@
   letter-spacing: 0.5px;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1600px) {
   .course-grid-paginated {
-    grid-template-columns: repeat(2, 280px);
-    gap: 20px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .course-grid-paginated {
-    grid-template-columns: repeat(1, 280px);
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .course-grid-paginated {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .course-grid-paginated {
+    grid-template-columns: 1fr;
     gap: 16px;
   }
 }

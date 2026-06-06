@@ -226,7 +226,7 @@ const Section = ({ title, courses, emptyMsg, actionLabel = "Create Course", onAc
     );
   }
 
-  const itemsPerPage = 6;
+  const itemsPerPage = 10;
   const totalPages = Math.ceil(courses.length / itemsPerPage);
   const activePage = Math.min(currentPage, Math.max(0, totalPages - 1));
 
