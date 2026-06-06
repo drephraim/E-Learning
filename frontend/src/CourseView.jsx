@@ -6,12 +6,47 @@ import FlashcardsComponent from './FlashcardsComponent';
 import SummaryComponent from './SummaryComponent';
 import TaskComponent from './TaskComponent';
 import CodeRunner from './CodeRunner';
-import Confetti from 'react-confetti';
 import jsPDF from 'jspdf';
 import ReactStars from 'react-stars';
 import { auth } from './firebase';
 import { API_BASE_URL } from './config';
 import './CourseView.css';
+
+const CustomConfetti = () => {
+  const pieces = Array.from({ length: 120 });
+  const colors = ['#f43f5e', '#3b82f6', '#10b981', '#eab308', '#a855f7', '#f97316'];
+  
+  return (
+    <div className="custom-confetti-container">
+      {pieces.map((_, i) => {
+        const left = Math.random() * 100;
+        const delay = Math.random() * 5;
+        const duration = 3 + Math.random() * 4;
+        const size = 6 + Math.random() * 8;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const shape = Math.random() > 0.5 ? '50%' : '0%';
+        const rotationStart = Math.random() * 360;
+        
+        return (
+          <div
+            key={i}
+            className="custom-confetti-piece"
+            style={{
+              left: `${left}%`,
+              width: size,
+              height: size,
+              backgroundColor: color,
+              borderRadius: shape,
+              animationDelay: `${delay}s`,
+              animationDuration: `${duration}s`,
+              transform: `rotate(${rotationStart}deg)`
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+};
 
 export default function CourseView() {
   const { id } = useParams();
@@ -283,7 +318,7 @@ export default function CourseView() {
     <div className="courseview-layout">
 
       {/* Confetti for completion */}
-      {isCompleted && <Confetti recycle={false} numberOfPieces={500} />}
+      {isCompleted && <CustomConfetti />}
 
       {/* Completion Modal */}
       {showCompletionModal && (
