@@ -548,12 +548,9 @@ export class CoursesService {
       // 2. Generate Course Cover (instantaneous sync call using the coverTheme from LLM)
       const coverImage = this.generateCourseCover(outlineData.courseTitle || dto.topic, outlineData.coverTheme);
       
-      // 2. Multi-phase generation for each chapter
-      const modulesData = [];
-      let orderIndex = 0;
-      
-      for (const chapter of outlineData.chapters) {
-        this.logger.log(`Processing chapter: ${chapter.title}`);
+      // 2. Parallel generation for each chapter
+      const chapterPromises = outlineData.chapters.map(async (chapter: any, index: number) => {
+        this.logger.log(`Starting parallel processing for chapter: ${chapter.title}`);
         
         // A. Tavily Search & Scrape
         let scrapedContext = "";
@@ -676,16 +673,17 @@ Output STRICTLY valid JSON exactly matching this format:
           }
         } catch (_) {}
 
-        modulesData.push({
+        return {
           title: chapter.title,
           content: content,
           youtubeUrl: youtubeUrl,
-          orderIndex: orderIndex,
+          orderIndex: index,
           difficultyWeight: moduleDifficultyWeight,
           learningAids: { create: learningAidsData }
-        });
-        orderIndex++;
-      }
+        };
+      });
+
+      const modulesData = await Promise.all(chapterPromises);
       
       // 3. Save to DB
       let normalizedDifficulty = dto.difficulty.toUpperCase();
