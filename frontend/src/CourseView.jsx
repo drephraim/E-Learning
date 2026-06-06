@@ -7,7 +7,6 @@ import SummaryComponent from './SummaryComponent';
 import TaskComponent from './TaskComponent';
 import CodeRunner from './CodeRunner';
 import jsPDF from 'jspdf';
-import ReactStars from 'react-stars';
 import { auth } from './firebase';
 import { API_BASE_URL } from './config';
 import './CourseView.css';
@@ -42,6 +41,37 @@ const CustomConfetti = () => {
               transform: `rotate(${rotationStart}deg)`
             }}
           />
+        );
+      })}
+    </div>
+  );
+};
+
+const CustomStars = ({ count = 5, value, onChange, size = 32, color2 = '#fbbf24', color1 = '#e4e5e9', edit = true }) => {
+  const [hoverValue, setHoverValue] = useState(null);
+
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {Array.from({ length: count }).map((_, idx) => {
+        const starValue = idx + 1;
+        const isFilled = (edit && hoverValue !== null) ? starValue <= hoverValue : starValue <= value;
+
+        return (
+          <span
+            key={idx}
+            onClick={() => edit && onChange && onChange(starValue)}
+            onMouseEnter={() => edit && setHoverValue(starValue)}
+            onMouseLeave={() => edit && setHoverValue(null)}
+            style={{
+              fontSize: `${size}px`,
+              color: isFilled ? color2 : color1,
+              cursor: edit ? 'pointer' : 'default',
+              transition: 'color 0.15s ease',
+              lineHeight: 1
+            }}
+          >
+            ★
+          </span>
         );
       })}
     </div>
@@ -373,7 +403,7 @@ export default function CourseView() {
             {/* Rating */}
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 8 }}>Rate this course:</div>
-              <ReactStars count={5} value={rating} onChange={setRating} size={32} color2={'#fbbf24'} />
+              <CustomStars count={5} value={rating} onChange={setRating} size={32} color2={'#fbbf24'} />
               <textarea
                 value={review}
                 onChange={(e) => setReview(e.target.value)}
@@ -549,7 +579,7 @@ export default function CourseView() {
                     {course.ratings.map(r => (
                       <div key={r.id} style={{ padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <ReactStars count={5} value={r.rating} edit={false} size={16} color2={'#fbbf24'} />
+                           <CustomStars count={5} value={r.rating} edit={false} size={16} color2={'#fbbf24'} />
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{new Date(r.createdAt).toLocaleDateString()}</span>
                         </div>
                         {r.review && <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>"{r.review}"</p>}
