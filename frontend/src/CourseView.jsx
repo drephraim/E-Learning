@@ -320,8 +320,12 @@ export default function CourseView() {
 
   if (loading) {
     return (
-      <div style={{minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-color)', color: 'white'}}>
+      <div style={{minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', color: 'white', gap: 16}}>
+        <div className="skeleton" style={{ width: 64, height: 64, borderRadius: '50%' }}></div>
         <h2>Loading Curriculum...</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: 400, textAlign: 'center' }}>
+          AI is preparing your personalized materials, chapters, and exercises. This may take up to a minute on the first load.
+        </p>
       </div>
     );
   }

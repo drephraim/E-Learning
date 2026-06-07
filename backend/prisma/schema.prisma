@@ -65,6 +65,7 @@ model Course {
   createdAt        DateTime       @default(now())
   averageRating    Float          @default(0)
   totalRatings     Int            @default(0)
+  recommendationSourceId String?
 
   user             User           @relation(fields: [userId], references: [id])
   modules          Module[]

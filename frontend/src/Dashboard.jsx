@@ -22,75 +22,6 @@ const WelcomeBanner = ({ onOpenModal }) => (
   </div>
 );
 
-const DailyRecommendationLoader = () => (
-  <div className="daily-recommendation-banner loading">
-    <div className="recommendation-content">
-      <div className="recommendation-info">
-        <div className="skeleton skeleton-badge"></div>
-        <div className="skeleton skeleton-title"></div>
-        <div className="skeleton skeleton-meta"></div>
-        <div className="skeleton skeleton-desc"></div>
-        <div className="skeleton skeleton-btn"></div>
-      </div>
-      <div className="recommendation-preview-container">
-        <div className="skeleton skeleton-img"></div>
-      </div>
-    </div>
-  </div>
-);
-
-const DailyRecommendationBanner = ({ course, isEnrolled, onEnroll }) => {
-  if (!course) return null;
-
-  const rawImage = course.coverImage && !course.coverImage.includes('unsplash.com') ? course.coverImage : '';
-  const coverSrc = rawImage
-    ? (rawImage.startsWith('http') || rawImage.startsWith('data:') ? rawImage : `${API_BASE_URL}${rawImage}`)
-    : '';
-
-  const totalModules = course.modules?.length || 0;
-
-  return (
-    <div className="daily-recommendation-banner">
-      <div className="recommendation-badge">
-        <Sparkles size={12} /> DAILY FEATURED COURSE
-      </div>
-      <div className="recommendation-content">
-        <div className="recommendation-info">
-          <h2 className="recommendation-title">{course.title}</h2>
-          <div className="recommendation-meta">
-            <span className="recommendation-tag difficulty">{course.targetDifficulty}</span>
-            <span className="recommendation-tag chapters">
-              <BookOpen size={13} /> {totalModules} Chapters
-            </span>
-          </div>
-          <p className="recommendation-desc">
-            A brand-new course automatically curated by our AI engine to level up your skills today. Dive right in!
-          </p>
-          <button className="recommendation-btn" onClick={() => onEnroll(course.id, isEnrolled)}>
-            {isEnrolled ? (
-              <>
-                <Play size={16} fill="currentColor" /> Continue Learning
-              </>
-            ) : (
-              <>
-                <Plus size={16} /> Enroll & Start Course
-              </>
-            )}
-          </button>
-        </div>
-        <div className="recommendation-preview-container">
-          {coverSrc ? (
-            <img src={coverSrc} alt={course.title} className="recommendation-preview-img" />
-          ) : (
-            <div className="recommendation-preview-placeholder">
-              <BookOpen size={48} color="var(--text-muted)" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const StatsGrid = ({ enrolledCount, completedCount, timeSpentHours, createdCount }) => (
   <div className="stats-grid">
@@ -282,8 +213,8 @@ export default function Dashboard() {
   const [createdCourses, setCreatedCourses] = useState([]);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [stats, setStats] = useState({ enrolledCount: 0, completedCount: 0, timeSpentHours: 0 });
-  const [dailyRec, setDailyRec] = useState(null);
-  const [isDailyEnrolled, setIsDailyEnrolled] = useState(false);
+  const [dailyRecs, setDailyRecs] = useState([]);
+  const [enrolledDailyIds, setEnrolledDailyIds] = useState([]);
   const [loadingDaily, setLoadingDaily] = useState(true);
 
   const handleOpenModal = () => setIsModalOpen(true);
@@ -332,39 +263,15 @@ export default function Dashboard() {
       fetch(`${API_BASE_URL}/courses/daily-recommendation?userId=${userId}`)
         .then(res => res.json())
         .then(data => {
-          if (data && data.course) {
-            setDailyRec(data.course);
-            setIsDailyEnrolled(data.isEnrolled);
+          if (data && data.courses) {
+            setDailyRecs(data.courses);
+            setEnrolledDailyIds(data.enrolledIds || []);
           }
           setLoadingDaily(false);
         })
         .catch(err => {
-          console.error("Could not fetch daily recommendation", err);
+          console.error("Could not fetch daily recommendations", err);
           setLoadingDaily(false);
-        });
-    }
-  };
-
-  const handleEnrollDaily = (courseId, alreadyEnrolled) => {
-    if (!auth.currentUser) return;
-    if (alreadyEnrolled) {
-      navigate(`/course/${courseId}`);
-    } else {
-      fetch(`${API_BASE_URL}/courses/${courseId}/enroll`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: auth.currentUser.uid })
-      })
-        .then(res => res.json())
-        .then(() => {
-          fetchDailyRecommendation(auth.currentUser.uid);
-          fetchCourses();
-          fetchStats();
-          navigate(`/course/${courseId}`);
-        })
-        .catch(err => {
-          console.error("Enrollment failed", err);
-          alert("Failed to enroll in daily course.");
         });
     }
   };
@@ -421,14 +328,45 @@ export default function Dashboard() {
           <WelcomeBanner onOpenModal={handleOpenModal} />
 
           {loadingDaily ? (
-            <DailyRecommendationLoader />
-          ) : (
-            <DailyRecommendationBanner 
-              course={dailyRec} 
-              isEnrolled={isDailyEnrolled} 
-              onEnroll={handleEnrollDaily} 
-            />
-          )}
+            <div className="dashboard-section">
+              <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <Sparkles size={20} color="var(--orange)" /> Daily AI Recommendations
+              </h2>
+              <div className="course-grid-wrapper">
+                <div className="course-grid-paginated">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="course-card skeleton" style={{ height: '280px', borderRadius: 12 }}></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : dailyRecs.length > 0 ? (
+            <div className="dashboard-section">
+              <div className="section-header" style={{ marginBottom: '16px' }}>
+                <div>
+                  <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={20} color="var(--orange)" /> Daily AI Recommendations
+                  </h2>
+                  <p className="section-subtitle-small">
+                    AI-curated learning paths, refreshed every 24 hours to match trending skills.
+                  </p>
+                </div>
+              </div>
+              <div className="course-grid-wrapper">
+                <div className="course-grid-paginated">
+                  {dailyRecs.map(course => (
+                    <CourseCard 
+                      key={course.id} 
+                      course={{
+                        ...course,
+                        userProgress: enrolledDailyIds.includes(course.id) ? [{ isCompleted: false }] : []
+                      }} 
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <StatsGrid 
             enrolledCount={stats.enrolledCount}

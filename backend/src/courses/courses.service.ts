@@ -763,7 +763,7 @@ Output STRICTLY valid JSON exactly matching this format:
   }
 
   async getCourse(id: string, userId?: string) {
-    const course = await this.prisma.course.findUnique({
+    let course = await this.prisma.course.findUnique({
       where: { id },
       include: {
         modules: {
@@ -776,6 +776,30 @@ Output STRICTLY valid JSON exactly matching this format:
         userProgress: userId ? { where: { userId } } : undefined
       }
     });
+
+    if (!course) return null;
+
+    // Check if it's a shell course (e.g. recommended courses created with empty content)
+    const isShell = course.modules.some(m => !m.content);
+    if (isShell) {
+      this.logger.log(`Lazy-generating contents for shell course "${course.title}" (${course.id})...`);
+      await this.fillShellCourseContent(course);
+
+      // Re-fetch the fully generated course details
+      course = await this.prisma.course.findUnique({
+        where: { id },
+        include: {
+          modules: {
+            orderBy: { orderIndex: 'asc' },
+            include: { 
+              learningAids: true,
+              userProgress: userId ? { where: { userId } } : undefined
+            }
+          },
+          userProgress: userId ? { where: { userId } } : undefined
+        }
+      });
+    }
 
     return course;
   }
@@ -1140,110 +1164,17 @@ Output STRICTLY valid JSON exactly matching this format:
     });
   }
 
-  async getSuggestions(userId: string, courseId: string) {
+  async getSuggestions(userId: string, courseId: string): Promise<any[]> {
     const course = await this.prisma.course.findUnique({
-      where: { id: courseId }
+      where: { id: courseId },
+      include: { modules: true }
     });
 
     if (!course) throw new Error('Course not found');
 
-    // 1. Fetch user progress to find already enrolled/started courses to exclude them
-    const enrolledProgress = await this.prisma.userProgress.findMany({
-      where: { userId },
-      include: { module: { select: { courseId: true } } }
-    });
-    const enrolledCourseIds = enrolledProgress.map(ep => ep.module.courseId);
-    const excludedCourseIds = Array.from(new Set([courseId, ...enrolledCourseIds]));
-
-    // 2. Fetch all candidates that are not the current course or already enrolled
-    const candidateCourses = await this.prisma.course.findMany({
-      where: {
-        id: { notIn: excludedCourseIds }
-      },
-      include: {
-        _count: { select: { modules: true } }
-      }
-    });
-
-    // 3. Fetch topic cognitive state or fallback to global cognitive state
-    const topicKeyword = course.title.split(' ')[0].toLowerCase();
-    const normalizedTopic = course.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
-    let userCognitiveState = 'BEGINNER';
-    try {
-      const topicState = await this.prisma.topicState.findUnique({
-        where: { userId_topic: { userId, topic: normalizedTopic } }
-      });
-      if (topicState) {
-        userCognitiveState = topicState.cognitiveState;
-      } else {
-        const userRecord = await this.prisma.user.findUnique({ where: { id: userId } });
-        if (userRecord?.cognitiveState) userCognitiveState = userRecord.cognitiveState;
-      }
-    } catch (_) {}
-
-    const userRecord = await this.prisma.user.findUnique({ where: { id: userId } });
-    const globalState = userRecord?.cognitiveState || 'BEGINNER';
-
-    // 4. Score candidates in memory for adaptive ranking
-    const scoredCandidates = candidateCourses.map(cand => {
-      let score = 0;
-      const candTitle = cand.title.toLowerCase();
-      const isSameTopic = candTitle.includes(topicKeyword);
-
-      if (isSameTopic) {
-        score += 100; // Same subject match
-        if (cand.targetDifficulty === userCognitiveState) {
-          score += 50; // Exact match for level
-        } else if (
-          (userCognitiveState === 'BEGINNER' && cand.targetDifficulty === 'INTERMEDIATE') ||
-          (userCognitiveState === 'INTERMEDIATE' && cand.targetDifficulty === 'ADVANCED')
-        ) {
-          score += 30; // Progressive difficulty step
-        }
-      } else {
-        if (cand.targetDifficulty === globalState) {
-          score += 20; // Matches global cognitive state
-        }
-      }
-
-      return { cand, score };
-    });
-
-    // Sort descending by score, then by createdAt desc
-    scoredCandidates.sort((a, b) => b.score - a.score || b.cand.createdAt.getTime() - a.cand.createdAt.getTime());
-
-    return scoredCandidates.slice(0, 5).map(sc => sc.cand);
-  }
-
-  async getDailyRecommendationTopic(): Promise<string> {
-    const recentCourses = await this.prisma.course.findMany({
-      where: { userId: 'system-bot' },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      select: { title: true }
-    });
-    const recentTitles = recentCourses.map(c => c.title).join(', ');
-    
-    try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const prompt = `Suggest a single, highly engaging, trending computer science, software engineering, design, or technical topic for a daily featured tutorial course.
-Avoid these recently recommended topics/titles: [${recentTitles}].
-Return ONLY the title of the topic (1 to 4 words), without punctuation, markdown wrappers, or explanation. For example: "Websockets", "Tailwind CSS", "Docker Fundamentals", "Rust Programming".`;
-      const result = await model.generateContent(prompt);
-      const topic = result.response.text().trim().replace(/['"`.?!]/g, '');
-      return topic || "TypeScript Advanced Patterns";
-    } catch (err: any) {
-      this.logger.warn(`Failed to suggest daily topic with Gemini: ${err.message}. Falling back to default.`);
-      return "Next.js App Router";
-    }
-  }
-
-  async getDailyRecommendation(userId?: string): Promise<{ course: any, isEnrolled: boolean }> {
-    // 1. Find the latest course created by system-bot
-    let dailyCourse = await this.prisma.course.findFirst({
-      where: { userId: 'system-bot' },
-      orderBy: { createdAt: 'desc' },
+    // Find if we already have 3 continuation recommendations in the DB
+    let recommendations = await this.prisma.course.findMany({
+      where: { recommendationSourceId: courseId },
       include: {
         modules: {
           orderBy: { orderIndex: 'asc' }
@@ -1251,53 +1182,360 @@ Return ONLY the title of the topic (1 to 4 words), without punctuation, markdown
       }
     });
 
-    const isExpired = dailyCourse 
-      ? (new Date().getTime() - new Date(dailyCourse.createdAt).getTime() > 24 * 60 * 60 * 1000)
-      : true;
-
-    if (isExpired) {
-      this.logger.log(`Daily recommended course is expired or missing. Generating a new one...`);
-      const topic = await this.getDailyRecommendationTopic();
+    if (recommendations.length < 3) {
+      const needed = 3 - recommendations.length;
+      this.logger.log(`Generating ${needed} new advanced continuation shell recommendations for course: "${course.title}"`);
       
-      const genResult = await this.generateCourse({
-        userId: 'system-bot',
-        topic,
-        difficulty: 'INTERMEDIATE',
-        chapters: 5,
-        includeYoutube: true
-      });
+      try {
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        
+        // Define the target difficulty based on the current course
+        let targetDifficulty = 'INTERMEDIATE';
+        if (course.targetDifficulty === 'BEGINNER') {
+          targetDifficulty = 'INTERMEDIATE';
+        } else if (course.targetDifficulty === 'INTERMEDIATE' || course.targetDifficulty === 'ADVANCED') {
+          targetDifficulty = 'ADVANCED';
+        }
 
-      if (genResult.success && genResult.course) {
-        dailyCourse = await this.prisma.course.findUnique({
-          where: { id: genResult.courseId },
-          include: {
-            modules: {
-              orderBy: { orderIndex: 'asc' }
+        const prompt = `You are a curriculum expert. The student has just completed the course "${course.title}" at a "${course.targetDifficulty}" level.
+Suggest exactly ${needed} continuation or advanced courses to follow up on this topic.
+For each course, design a syllabus of exactly 5 chapters.
+Return your response ONLY as a JSON array of course objects:
+[
+  {
+    "title": "String (e.g. Advanced Python: Concurrency & Threads)",
+    "difficulty": "${targetDifficulty}",
+    "tag": "String (1-2 words topic tag, uppercase)",
+    "chapters": [
+      { "title": "String (chapter title)" },
+      { "title": "String (chapter title)" },
+      { "title": "String (chapter title)" },
+      { "title": "String (chapter title)" },
+      { "title": "String (chapter title)" }
+    ]
+  }
+]
+Do not include markdown wrappers, explanations, or any text other than the raw JSON array.`;
+
+        const result = await model.generateContent(prompt);
+        const cleaned = result.response.text().trim().replace(/```json|```/g, '').trim();
+        const suggestions = JSON.parse(cleaned);
+
+        if (Array.isArray(suggestions)) {
+          // Ensure user 'system-bot' exists to avoid foreign key constraints
+          try {
+            const botExists = await this.prisma.user.findUnique({ where: { id: 'system-bot' } });
+            if (!botExists) {
+              await this.prisma.user.create({
+                data: {
+                  id: 'system-bot',
+                  email: 'system-bot@placeholder.com',
+                  name: 'Daily Recommendation'
+                }
+              });
             }
+          } catch (e) {
+            this.logger.warn(`Could not verify or create system-bot user: ${e.message}`);
           }
-        });
-      } else {
-        this.logger.error(`Failed to lazy-generate daily recommended course: ${genResult.message}`);
+
+          for (const sug of suggestions.slice(0, needed)) {
+            const h = Math.floor(Math.random() * 360);
+            const coverTheme = {
+              gradStart: `hsl(${h}, 45%, 15%)`,
+              gradEnd: `hsl(${h}, 45%, 8%)`,
+              accent: `hsl(${h}, 85%, 60%)`,
+              accent2: `hsl(${(h + 40) % 360}, 85%, 60%)`,
+              tag: sug.tag || "CONTINUATION",
+              icon: `<path d="M10 50 L140 50 M75 10 L75 110" stroke="#fff" stroke-width="4" />`
+            };
+            
+            const coverImage = await this.generateCourseCover(sug.title, coverTheme);
+            
+            const newCourse = await this.prisma.course.create({
+              data: {
+                userId: 'system-bot',
+                title: sug.title,
+                targetDifficulty: sug.difficulty || targetDifficulty,
+                coverImage,
+                recommendationSourceId: courseId,
+                modules: {
+                  create: sug.chapters.map((ch: any, idx: number) => ({
+                    title: ch.title,
+                    orderIndex: idx,
+                    difficultyWeight: idx + 1
+                  }))
+                }
+              },
+              include: {
+                modules: {
+                  orderBy: { orderIndex: 'asc' }
+                }
+              }
+            });
+            recommendations.push(newCourse);
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(`Failed to generate outline recommendations: ${err.message}`);
       }
     }
 
-    if (!dailyCourse) {
-      return { course: null, isEnrolled: false };
+    if (recommendations.length === 0) {
+      this.logger.warn("Outline recommendations generation failed. Falling back to existing database courses.");
+      const fallbackCourses = await this.prisma.course.findMany({
+        where: { id: { not: courseId } },
+        take: 3
+      });
+      return fallbackCourses;
     }
 
-    let isEnrolled = false;
-    if (userId) {
-      const enrollment = await this.prisma.userCourseProgress.findUnique({
+    return recommendations.slice(0, 3);
+  }
+
+  async getDailyRecommendationTopics(count: number): Promise<string[]> {
+    const recentCourses = await this.prisma.course.findMany({
+      where: { userId: 'system-bot' },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { title: true }
+    });
+    const recentTitles = recentCourses.map(c => c.title).join(', ');
+    
+    try {
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const prompt = `Suggest a list of ${count} highly engaging, distinct technical topics for daily featured learning courses (topics could cover computer science, frontend, backend, database, cloud, devops, mobile, or AI).
+Avoid these recently recommended topics/titles: [${recentTitles}].
+Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volumes", "Kubernetes Ingress", "GraphQL Queries"]. Do not include markdown wrappers, explanation, or any other text.`;
+      const result = await model.generateContent(prompt);
+      const cleaned = result.response.text().trim().replace(/```json|```/g, '').trim();
+      const topics = JSON.parse(cleaned);
+      if (Array.isArray(topics) && topics.length > 0) {
+        return topics.map(t => t.trim().replace(/['"`.?!]/g, ''));
+      }
+    } catch (err: any) {
+      this.logger.warn(`Failed to suggest daily topics with Gemini: ${err.message}. Falling back to default.`);
+    }
+    
+    const fallbacks = [
+      "TypeScript Advanced Patterns",
+      "Next.js App Router",
+      "Docker Container Networking",
+      "Kubernetes Essentials",
+      "PostgreSQL Performance Tuning",
+      "Redis Caching Strategies",
+      "AWS Lambda Fundamentals",
+      "GraphQL API Development"
+    ];
+    return fallbacks.sort(() => 0.5 - Math.random()).slice(0, count);
+  }
+
+  async getDailyRecommendation(userId?: string): Promise<{ courses: any[], enrolledIds: string[] }> {
+    const oneDayAgo = new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+    
+    let dailyCourses = await this.prisma.course.findMany({
+      where: {
+        userId: 'system-bot',
+        createdAt: { gte: oneDayAgo }
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        modules: {
+          orderBy: { orderIndex: 'asc' },
+          include: {
+            userProgress: userId ? { where: { userId } } : undefined
+          }
+        },
+        userProgress: userId ? { where: { userId } } : undefined
+      }
+    });
+
+    if (dailyCourses.length < 5) {
+      const neededCount = 5 - dailyCourses.length;
+      this.logger.log(`Found only ${dailyCourses.length} daily recommended courses. Generating ${neededCount} more...`);
+      const topics = await this.getDailyRecommendationTopics(neededCount);
+      
+      for (const topic of topics) {
+        const genResult = await this.generateCourse({
+          userId: 'system-bot',
+          topic,
+          difficulty: 'INTERMEDIATE',
+          chapters: 5,
+          includeYoutube: true
+        });
+        
+        if (genResult.success && genResult.courseId) {
+          const newCourse = await this.prisma.course.findUnique({
+            where: { id: genResult.courseId },
+            include: {
+              modules: {
+                orderBy: { orderIndex: 'asc' },
+                include: {
+                  userProgress: userId ? { where: { userId } } : undefined
+                }
+              },
+              userProgress: userId ? { where: { userId } } : undefined
+            }
+          });
+          if (newCourse) {
+            dailyCourses.push(newCourse);
+          }
+        } else {
+          this.logger.error(`Failed to lazy-generate daily course for topic "${topic}": ${genResult.message}`);
+        }
+      }
+    }
+
+    const enrolledIds: string[] = [];
+    if (userId && dailyCourses.length > 0) {
+      const enrollments = await this.prisma.userCourseProgress.findMany({
         where: {
-          userId_courseId: {
-            userId,
-            courseId: dailyCourse.id
+          userId,
+          courseId: { in: dailyCourses.map(c => c.id) }
+        },
+        select: { courseId: true }
+      });
+      enrollments.forEach(e => enrolledIds.push(e.courseId));
+    }
+
+    return { courses: dailyCourses.slice(0, 5), enrolledIds };
+  }
+
+  async fillShellCourseContent(course: any) {
+    this.logger.log(`Generating content for shell course: "${course.title}" (${course.id})`);
+    
+    const difficulty = course.targetDifficulty;
+    const cognitiveState = difficulty;
+    
+    const adaptiveNote = cognitiveState === 'ADVANCED'
+      ? 'The learner is ADVANCED. Go deep — include edge cases, internals, advanced patterns, and assume strong prior knowledge. Skip basic definitions.'
+      : cognitiveState === 'INTERMEDIATE'
+      ? 'The learner is INTERMEDIATE. Balance theory and practice. Include worked examples, mention common pitfalls, and assume basic familiarity with the domain.'
+      : 'The learner is a BEGINNER. Use simple language, build concepts from the ground up, avoid jargon without explanation, and include plenty of analogies.';
+
+    const chapterPromises = course.modules.map(async (module: any, index: number) => {
+      this.logger.log(`Lazy-generating chapter: "${module.title}" for course "${course.title}"`);
+
+      // A. Tavily Search & Scrape
+      let scrapedContext = "";
+      try {
+        const tavilyResp = await axios.post('https://api.tavily.com/search', {
+          api_key: process.env.TAVILY_API_KEY,
+          query: `${course.title} ${module.title}`,
+          search_depth: "basic",
+          include_answer: true,
+          include_raw_content: true,
+          max_results: 3
+        });
+        scrapedContext = tavilyResp.data.results.map((r: any) => r.raw_content || r.content).join("\n\n") || tavilyResp.data.answer || "";
+      } catch (err: any) {
+        this.logger.error("Tavily search failed for shell course", err.message);
+      }
+
+      // B. Detailed Groq Synthesis
+      const detailPrompt = `You are a world-class instructor writing a course chapter. Topic: ${course.title}. Chapter Title: ${module.title}. Target Audience: ${difficulty}.
+      ADAPTIVE ENGINE NOTE: ${adaptiveNote}
+      Use the following scraped web content to enrich your explanation with facts and deep details:\n\n${scrapedContext.substring(0, 15000)}\n\n
+      Write a highly detailed, engaging, and comprehensive explanation for this chapter in Markdown format tailored to a ${cognitiveState} learner. Use clear headings, bullet points, and code snippets or examples if applicable. Ensure code snippets are correctly formatted with language identifiers (e.g. \`\`\`javascript).`;
+
+      const detailCompletion = await this.callGroqWithRetry({
+        messages: [{ role: 'user', content: detailPrompt }],
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 4096,
+      });
+      const content = detailCompletion.choices[0]?.message?.content || '';
+
+      // C. YouTube Integration
+      let youtubeUrl = null;
+      if (process.env.YOUTUBE_API_KEY) {
+        try {
+          const ytResp = await axios.get(`https://www.googleapis.com/youtube/v3/search`, {
+            params: {
+              key: process.env.YOUTUBE_API_KEY,
+              q: `${course.title} ${module.title} tutorial`,
+              part: "snippet",
+              type: "video",
+              maxResults: 1
+            }
+          });
+          if (ytResp.data.items && ytResp.data.items.length > 0) {
+            youtubeUrl = `https://www.youtube.com/embed/${ytResp.data.items[0].id.videoId}`;
+          }
+        } catch (err: any) {
+          this.logger.error("YouTube search failed for shell course", err.message);
+        }
+      }
+
+      // D. Learning Aids Generation
+      const quizQuestionCount = cognitiveState === 'ADVANCED' ? 12 : cognitiveState === 'INTERMEDIATE' ? 8 : 5;
+      let learningAidsData = [];
+      try {
+        const learningAidsPrompt = `Based ONLY on the following chapter content, generate exactly:
+- ${quizQuestionCount} multiple choice quiz questions (calibrated for a ${cognitiveState} learner)
+- 10 flashcards
+- 1 comprehensive, in-depth structured summary (covering key definitions, core concepts, and key takeaways in 3-4 detailed paragraphs)
+- exactly 5 practical tasks (each must have a clear description and a beautifully formatted "answer" containing step-by-step solution steps, best practice suggestions, and clean syntax-highlighted code blocks where applicable in Markdown)
+
+Content:
+${content.substring(0, 10000)}
+
+Output STRICTLY valid JSON exactly matching this format:
+{
+  "quizzes": [
+    { "question": "Question text?", "options": ["A", "B", "C", "D"], "answerIndex": 0 }
+  ],
+  "flashcards": [
+    { "front": "Concept name", "back": "Concept definition" }
+  ],
+  "summary": "Detailed comprehensive summary covering the core concepts, key terms, and critical takeaways in depth.",
+  "tasks": [
+    { "title": "Task Name", "description": "What to do", "answer": "Detailed step-by-step solution, explanation, and code blocks formatted beautifully in Markdown" }
+  ]
+}`;
+        const aidsCompletion = await this.callGroqWithRetry({
+          messages: [{ role: 'user', content: learningAidsPrompt }],
+          model: 'llama-3.1-8b-instant',
+          response_format: { type: 'json_object' },
+          max_tokens: 4096,
+        });
+        const aidsText = aidsCompletion.choices[0]?.message?.content || '{}';
+        const aidsJson = JSON.parse(aidsText);
+
+        const quizzes = aidsJson.quizzes || aidsJson.quiz || [];
+        if (Array.isArray(quizzes) && quizzes.length > 0) {
+          learningAidsData.push({ type: 'QUIZ', payload: { quizzes } });
+        }
+
+        const flashcards = aidsJson.flashcards || aidsJson.flashcard || [];
+        if (Array.isArray(flashcards) && flashcards.length > 0) {
+          learningAidsData.push({ type: 'FLASHCARD', payload: { flashcards } });
+        }
+
+        const summary = typeof aidsJson.summary === 'string' ? aidsJson.summary : (aidsJson.summary?.text || aidsJson.summary?.content || '');
+        if (summary) {
+          learningAidsData.push({ type: 'SUMMARY', payload: { summary } });
+        }
+
+        const tasks = aidsJson.tasks || aidsJson.task || [];
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          learningAidsData.push({ type: 'TASK', payload: { tasks } });
+        }
+      } catch (err: any) {
+        this.logger.error("Learning Aids generation failed for shell course", err.message);
+      }
+
+      await this.prisma.module.update({
+        where: { id: module.id },
+        data: {
+          content,
+          youtubeUrl,
+          learningAids: {
+            create: learningAidsData
           }
         }
       });
-      isEnrolled = !!enrollment;
-    }
+    });
 
-    return { course: dailyCourse, isEnrolled };
+    await Promise.all(chapterPromises);
+    this.logger.log(`Fully generated content for shell course: "${course.title}"`);
   }
 }
