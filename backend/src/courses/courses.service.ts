@@ -500,7 +500,7 @@ Return ONLY valid, well-formed SVG code starting with <svg> and ending with </sv
     </svg>`;
   }
 
-  async generateCourse(dto: { userId: string, topic: string, difficulty: string, chapters: number, includeYoutube: boolean }) {
+  async generateCourse(dto: { userId: string, topic: string, difficulty: string, chapters: number, includeYoutube: boolean, recommendationUserId?: string, recommendationSourceId?: string }) {
     this.logger.log(`Starting AI course generation for topic: "${dto.topic}"`);
     this.logger.log(`Generation settings: difficulty=${dto.difficulty}, chapters=${dto.chapters}, youtube=${dto.includeYoutube}`);
 
@@ -733,6 +733,8 @@ Output STRICTLY valid JSON exactly matching this format:
           title: outlineData.courseTitle,
           targetDifficulty: normalizedDifficulty,
           coverImage: coverImage,
+          recommendationUserId: dto.recommendationUserId || null,
+          recommendationSourceId: dto.recommendationSourceId || null,
           modules: {
             create: modulesData
           }
@@ -743,14 +745,16 @@ Output STRICTLY valid JSON exactly matching this format:
       });
 
       // Automatically enroll the creator of the course
-      await this.prisma.userCourseProgress.create({
-        data: {
-          userId: dto.userId,
-          courseId: course.id,
-          isCompleted: false,
-          totalTimeSpentSeconds: 0
-        }
-      });
+      if (dto.userId !== 'system-bot') {
+        await this.prisma.userCourseProgress.create({
+          data: {
+            userId: dto.userId,
+            courseId: course.id,
+            isCompleted: false,
+            totalTimeSpentSeconds: 0
+          }
+        });
+      }
       
       return { success: true, courseId: course.id, course };
     } catch (error: any) {
@@ -859,11 +863,16 @@ Output STRICTLY valid JSON exactly matching this format:
   }
   async getAllCourses(userId?: string) {
     return await this.prisma.course.findMany({
-      where: userId ? {
-        NOT: {
-          userId: userId
-        }
-      } : undefined,
+      where: {
+        userId: userId ? { not: userId } : undefined,
+        recommendationUserId: null,
+        recommendationSourceId: null,
+        userProgress: userId ? {
+          none: {
+            userId: userId
+          }
+        } : undefined
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
@@ -1292,7 +1301,7 @@ Do not include markdown wrappers, explanations, or any text other than the raw J
     return recommendations.slice(0, 3);
   }
 
-  async getDailyRecommendationTopics(count: number): Promise<string[]> {
+  async getDailyRecommendationTopics(count: number, historyTitles: string[] = []): Promise<string[]> {
     const recentCourses = await this.prisma.course.findMany({
       where: { userId: 'system-bot' },
       orderBy: { createdAt: 'desc' },
@@ -1303,8 +1312,12 @@ Do not include markdown wrappers, explanations, or any text other than the raw J
     
     try {
       const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const prompt = `Suggest a list of ${count} highly engaging, distinct technical topics for daily featured learning courses (topics could cover computer science, frontend, backend, database, cloud, devops, mobile, or AI).
-Avoid these recently recommended topics/titles: [${recentTitles}].
+      const historyStr = historyTitles.length > 0 ? historyTitles.join(', ') : 'None';
+      const prompt = `Suggest a list of exactly ${count} highly engaging, distinct technical topics for daily featured learning courses (topics could cover computer science, frontend, backend, database, cloud, devops, mobile, or AI).
+The user's active learning history includes courses on these topics/titles: [${historyStr}].
+Your recommendations MUST be tailored, relevant, and directly build upon or complement the user's learning history (e.g. if they have react/frontend, suggest next.js/typescript/state-management; if they have python/analytics, suggest pandas/machine-learning/sql). If they have no history, suggest general modern engineering topics.
+Avoid recommending the exact topics they have already learned: [${historyStr}].
+Also avoid these recently recommended topics/titles: [${recentTitles}].
 Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volumes", "Kubernetes Ingress", "GraphQL Queries"]. Do not include markdown wrappers, explanation, or any other text.`;
       const result = await model.generateContent(prompt);
       const cleaned = result.response.text().trim().replace(/```json|```/g, '').trim();
@@ -1330,12 +1343,14 @@ Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volume
   }
 
   async getDailyRecommendation(userId?: string): Promise<{ courses: any[], enrolledIds: string[] }> {
-    const oneDayAgo = new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const startOfTodayGmt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     
     let dailyCourses = await this.prisma.course.findMany({
       where: {
         userId: 'system-bot',
-        createdAt: { gte: oneDayAgo }
+        recommendationUserId: userId || null,
+        createdAt: { gte: startOfTodayGmt }
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -1349,10 +1364,32 @@ Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volume
       }
     });
 
-    if (dailyCourses.length < 5) {
-      const neededCount = 5 - dailyCourses.length;
+    if (dailyCourses.length < 3) {
+      const neededCount = 3 - dailyCourses.length;
       this.logger.log(`Found only ${dailyCourses.length} daily recommended courses. Generating ${neededCount} more...`);
-      const topics = await this.getDailyRecommendationTopics(neededCount);
+      
+      let historyTitles: string[] = [];
+      if (userId) {
+        try {
+          const enrolled = await this.prisma.userCourseProgress.findMany({
+            where: { userId },
+            select: { course: { select: { title: true } } }
+          });
+          const enrolledTitles = enrolled.map(e => e.course?.title).filter(Boolean);
+          
+          const created = await this.prisma.course.findMany({
+            where: { userId },
+            select: { title: true }
+          });
+          const createdTitles = created.map(c => c.title).filter(Boolean);
+          
+          historyTitles = Array.from(new Set([...enrolledTitles, ...createdTitles]));
+        } catch (e) {
+          this.logger.warn(`Could not fetch user history for daily recommendation personalization: ${e.message}`);
+        }
+      }
+
+      const topics = await this.getDailyRecommendationTopics(neededCount, historyTitles);
       
       for (const topic of topics) {
         const genResult = await this.generateCourse({
@@ -1360,7 +1397,8 @@ Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volume
           topic,
           difficulty: 'INTERMEDIATE',
           chapters: 5,
-          includeYoutube: true
+          includeYoutube: true,
+          recommendationUserId: userId || null
         });
         
         if (genResult.success && genResult.courseId) {
@@ -1397,7 +1435,7 @@ Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volume
       enrollments.forEach(e => enrolledIds.push(e.courseId));
     }
 
-    return { courses: dailyCourses.slice(0, 5), enrolledIds };
+    return { courses: dailyCourses.slice(0, 3), enrolledIds };
   }
 
   async fillShellCourseContent(course: any) {

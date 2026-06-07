@@ -22,6 +22,72 @@ const WelcomeBanner = ({ onOpenModal }) => (
   </div>
 );
 
+const DailyRecommendationCarousel = ({ courses, enrolledIds }) => {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  if (!courses || courses.length === 0) return null;
+
+  const currentCourse = courses[activeIndex] || courses[0];
+  const isEnrolled = enrolledIds.includes(currentCourse.id);
+
+  const rawImage = currentCourse.coverImage && !currentCourse.coverImage.includes('unsplash.com') ? currentCourse.coverImage : '';
+  const coverSrc = rawImage
+    ? (rawImage.startsWith('http') || rawImage.startsWith('data:') ? rawImage : `${API_BASE_URL}${rawImage}`)
+    : '';
+
+  const handleAction = () => {
+    window.location.href = `/course/${currentCourse.id}`;
+  };
+
+  return (
+    <div className="carousel-section" style={{ marginBottom: '32px' }}>
+      <div className="daily-recommendation-banner">
+        <span className="recommendation-badge">
+          <Sparkles size={12} style={{ marginRight: '6px' }} /> Daily Featured Course
+        </span>
+        <div className="recommendation-content">
+          <div className="recommendation-info">
+            <h2 className="recommendation-title">{currentCourse.title}</h2>
+            <div className="recommendation-meta">
+              <span className="recommendation-tag difficulty">{currentCourse.targetDifficulty}</span>
+              <span className="recommendation-tag chapters">
+                <BookOpen size={12} style={{ marginRight: '4px' }} /> {currentCourse.modules?.length || 5} Chapters
+              </span>
+            </div>
+            <p className="recommendation-desc">
+              A brand-new course automatically curated by our AI engine to level up your skills today. Dive right in!
+            </p>
+            <button className="recommendation-btn" onClick={handleAction}>
+              <Play size={16} style={{ fill: 'currentColor' }} /> {isEnrolled ? "Continue Learning" : "Start Learning"}
+            </button>
+          </div>
+          <div className="recommendation-preview-container">
+            {coverSrc ? (
+              <img src={coverSrc} alt={currentCourse.title} className="recommendation-preview-img" />
+            ) : (
+              <div className="recommendation-preview-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'rgba(255,255,255,0.05)' }}>
+                <BookOpen size={48} color="var(--text-muted)" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {courses.length > 1 && (
+        <div className="carousel-dots">
+          {courses.map((_, index) => (
+            <button
+              key={index}
+              className={`carousel-dot ${activeIndex === index ? 'active' : ''}`}
+              onClick={() => setActiveIndex(index)}
+              title={`Go to course ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const StatsGrid = ({ enrolledCount, completedCount, timeSpentHours, createdCount }) => (
   <div className="stats-grid">
@@ -328,44 +394,11 @@ export default function Dashboard() {
           <WelcomeBanner onOpenModal={handleOpenModal} />
 
           {loadingDaily ? (
-            <div className="dashboard-section">
-              <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                <Sparkles size={20} color="var(--orange)" /> Daily AI Recommendations
-              </h2>
-              <div className="course-grid-wrapper">
-                <div className="course-grid-paginated">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="course-card skeleton" style={{ height: '280px', borderRadius: 12 }}></div>
-                  ))}
-                </div>
-              </div>
+            <div className="dashboard-section" style={{ marginBottom: '32px' }}>
+              <div className="daily-recommendation-banner skeleton" style={{ height: '300px', borderRadius: 16, background: 'rgba(30, 41, 59, 0.2)', border: '1px solid rgba(255,255,255,0.05)', opacity: 0.5 }}></div>
             </div>
           ) : dailyRecs.length > 0 ? (
-            <div className="dashboard-section">
-              <div className="section-header" style={{ marginBottom: '16px' }}>
-                <div>
-                  <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Sparkles size={20} color="var(--orange)" /> Daily AI Recommendations
-                  </h2>
-                  <p className="section-subtitle-small">
-                    AI-curated learning paths, refreshed every 24 hours to match trending skills.
-                  </p>
-                </div>
-              </div>
-              <div className="course-grid-wrapper">
-                <div className="course-grid-paginated">
-                  {dailyRecs.map(course => (
-                    <CourseCard 
-                      key={course.id} 
-                      course={{
-                        ...course,
-                        userProgress: enrolledDailyIds.includes(course.id) ? [{ isCompleted: false }] : []
-                      }} 
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            <DailyRecommendationCarousel courses={dailyRecs} enrolledIds={enrolledDailyIds} />
           ) : null}
 
           <StatsGrid 
