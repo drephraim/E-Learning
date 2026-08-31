@@ -1,6 +1,4 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { PDFParse } from 'pdf-parse';
-import * as mammoth from 'mammoth';
 
 export interface ExtractedDocument {
   rawText: string;
@@ -37,10 +35,14 @@ export class DocumentProcessorService {
       if (mimeType === 'application/pdf' || ext === 'pdf') {
         // Strategy 1: Modern PDFParse class
         try {
-          const parser = new PDFParse({ data: new Uint8Array(buffer) });
-          const textRes = await parser.getText();
-          rawText = textRes.text || '';
-          await parser.destroy();
+          const pdfModule = require('pdf-parse');
+          const PDFParse = pdfModule.PDFParse || pdfModule;
+          if (typeof PDFParse === 'function' && PDFParse.prototype && PDFParse.prototype.getText) {
+            const parser = new PDFParse({ data: new Uint8Array(buffer) });
+            const textRes = await parser.getText();
+            rawText = textRes.text || '';
+            await parser.destroy();
+          }
         } catch (pdfErr: any) {
           this.logger.warn(`Strategy 1 (PDFParse class) failed for ${fileName}: ${pdfErr.message}`);
         }
@@ -90,6 +92,7 @@ export class DocumentProcessorService {
         mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         ext === 'docx' || ext === 'doc'
       ) {
+        const mammoth = require('mammoth');
         const result = await mammoth.extractRawText({ buffer });
         rawText = result.value || '';
       } else if (
