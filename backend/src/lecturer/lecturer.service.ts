@@ -1036,11 +1036,8 @@ export class LecturerService {
 
       const deptStr = (user?.lecturerProfile?.department || user?.studentProfile?.programme || user?.institution || '').toLowerCase();
 
-      // Fetch all user-generated courses across the platform so no created course is hidden
+      // Fetch all courses across the platform so every generated course is available for audit
       const courses = await this.prisma.course.findMany({
-        where: {
-          userId: { not: 'system-bot' }
-        },
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { name: true, email: true, role: true } },
