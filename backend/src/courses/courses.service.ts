@@ -1138,145 +1138,15 @@ ${openAlexPapers.map((paper, idx) =>
       // 2. Generate Cover
       const coverImage = await this.generateCourseCover(outlineData.courseTitle || dto.topic, outlineData.coverTheme);
       
-      // 3. Ultra-Fast Parallel chapter generation (Combined Content & Learning Aids in Single Prompt)
-      const chapterPromises = outlineData.chapters.map(async (chapter: any, index: number) => {
-        let scrapedContext = "";
-        try {
-          if (process.env.TAVILY_API_KEY) {
-            const tavilyResp = await axios.post('https://api.tavily.com/search', {
-              api_key: process.env.TAVILY_API_KEY,
-              query: `${dto.topic} ${chapter.searchQuery || chapter.title}`,
-              search_depth: "basic",
-              include_answer: true,
-              max_results: 2
-            }, { timeout: 1000 });
-            scrapedContext = tavilyResp.data.results?.map((r: any) => r.content).join("\n\n") || tavilyResp.data.answer || "";
-          }
-        } catch (err: any) {}
-        
-        const combinedPrompt = `You are an elite academic professor and master curriculum writer crafting an exhaustive, textbook-grade course chapter.
-Topic: ${dto.topic}.
-Chapter Title: ${chapter.title}.
-Target Difficulty: ${dto.difficulty}.
-Learner Cognitive State: ${cognitiveState}. ${adaptiveNote}
-${institutionalPromptContext ? `\nINSTITUTIONAL SYLLABUS REFERENCE DATA:\n${institutionalPromptContext.substring(0, 3000)}\n` : ''}
-${openAlexPromptContext ? `\nOPENALEX ACADEMIC RESEARCH DATABASE LITERATURE:\n${openAlexPromptContext.substring(0, 3000)}\n` : ''}
-${scrapedContext ? `\nWEB RESEARCH CONTEXT:\n${scrapedContext.substring(0, 2500)}\n` : ''}
+      // 3. Create initial shell modules with outline chapters for instant DB creation
+      const initialModulesData = outlineData.chapters.map((chapter: any, index: number) => ({
+        title: chapter.title,
+        content: `## ${chapter.title}\n\n*✨ Synthesizing detailed textbook chapter content... Please wait a moment.*`,
+        orderIndex: index,
+        difficultyWeight: globalState === 'ADVANCED' ? 3 : globalState === 'INTERMEDIATE' ? 2 : 1,
+      }));
 
-COMPREHENSIVE DEPTH & COVERAGE REQUIREMENTS:
-Write a highly detailed, expansive, multi-section textbook chapter (aim for maximum depth and thorough coverage). Do NOT summarize or write high-level overviews. Cover all underlying mechanics and practical applications thoroughly across the following structured sub-sections:
-1. Executive Overview & Theoretical Foundations (Core background, key principles, historical evolution, and real-world significance).
-2. Deep Conceptual Mechanics & System Architecture (Detailed breakdown of workflows, mathematical formulas, comparative analysis tables, and structural design patterns).
-3. Production Code & Hands-On Technical Implementation (Comprehensive, fully functional syntax-highlighted code snippets e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql with inline explanations).
-4. Enterprise Edge Cases, Security & Performance Optimization (Common pitfalls, security vulnerabilities, performance bottlenecks, and industry best practices).
-
-ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
-1. APA 7TH EDITION IN-TEXT CITATIONS:
-   - Ground theories, empirical findings, definitions, and framework explanations using in-text APA 7th edition citations (e.g., (Author & Coauthor, Year) or (Author et al., Year)).
-   - Specifically cite literature from the OpenAlex research database context or institutional grounding materials provided above.
-
-2. VISUAL FORMATTING & PRESENTATION ELEGANCE:
-   - Structure the explanation with crisp Markdown section headers (##, ###).
-   - Use emoji callout blockquotes for key takeaways, terminology, and pitfalls:
-     > 💡 **Core Takeaway**: Essential concept summary.
-     > 📌 **Key Terminology**: Precise definitions.
-     > ⚠️ **Common Pitfall**: Typical student misconceptions and how to avoid them.
-   - Format all code examples with explicit syntax highlighting (e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql).
-   - Use Markdown tables or bulleted lists for comparative concepts.
-
-3. MANDATORY END-OF-CHAPTER REFERENCE & DOCUMENTATION SECTIONS:
-   - At the end of the chapter content, include a section titled:
-     ### References
-     List all cited sources in full formal APA 7th Edition format:
-     Author, A. A., & Author, B. B. (Year). *Title of publication*. Journal or Publisher Name. https://doi.org/10.xxxx/xxxx (or URL link).
-   - Immediately following the References section, include a section titled:
-     ### Further Reading & Official Documentation
-     Provide 2-4 curated recommendations (official documentation links, benchmark research papers, or classic textbooks) for students who want to deepen their mastery.
-
-Return strictly JSON matching this schema:
-{
-  "content": "Full, exhaustive, deeply detailed markdown chapter content incorporating in-text APA citations, sub-headings, callout boxes, code snippets, the ### References section, and the ### Further Reading & Official Documentation section.",
-  "quizzes": [{ "question": "Question text?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }],
-  "flashcards": [{ "front": "Concept", "back": "Definition" }],
-  "summary": "Comprehensive summary text of the chapter",
-  "tasks": [{ "title": "Practical Exercise", "description": "Problem prompt", "answer": "Step-by-step solution with explanations and syntax-highlighted code" }]
-}`;
-        
-        let chapterResult: any = {};
-        try {
-          const completion = await this.callGroqWithRetry({
-            messages: [{ role: 'user', content: combinedPrompt }],
-            model: 'groq/compound-mini',
-            max_tokens: 8192,
-            response_format: { type: 'json_object' }
-          });
-          chapterResult = JSON.parse(this.cleanJsonString(completion.choices[0]?.message?.content || '{}'));
-        } catch (e: any) {
-          this.logger.warn(`Groq chapter generation failed for ${chapter.title} (${e.message}). Retrying with Gemini fallback...`);
-          try {
-            const geminiModel = this.genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-            const geminiRes = await geminiModel.generateContent(combinedPrompt + "\nOutput strictly valid JSON.");
-            chapterResult = JSON.parse(this.cleanJsonString(geminiRes.response.text() || '{}'));
-          } catch (gemErr) {
-            chapterResult = {
-              content: `## ${chapter.title}\n\nComprehensive exploration of ${chapter.title} for ${dto.topic}.`,
-              summary: `Summary of ${chapter.title}`
-            };
-          }
-        }
-        
-        let youtubeUrl = null;
-        if (dto.includeYoutube && process.env.YOUTUBE_API_KEY) {
-          try {
-            const ytResp = await axios.get(`https://www.googleapis.com/youtube/v3/search`, {
-              params: {
-                key: process.env.YOUTUBE_API_KEY,
-                q: chapter.youtubeSearchQuery || `${dto.topic} ${chapter.title} tutorial`,
-                part: "snippet",
-                type: "video",
-                maxResults: 1
-              },
-              timeout: 1000
-            });
-            if (ytResp.data.items && ytResp.data.items.length > 0) {
-              youtubeUrl = `https://www.youtube.com/embed/${ytResp.data.items[0].id.videoId}`;
-            }
-          } catch (err: any) {}
-        }
-
-        const learningAidsData: any[] = [];
-        const quizzes = chapterResult.quizzes || chapterResult.quiz || [];
-        if (Array.isArray(quizzes) && quizzes.length > 0) {
-          learningAidsData.push({ type: 'QUIZ', payload: { quizzes } });
-        }
-        const flashcards = chapterResult.flashcards || chapterResult.flashcard || [];
-        if (Array.isArray(flashcards) && flashcards.length > 0) {
-          learningAidsData.push({ type: 'FLASHCARD', payload: { flashcards } });
-        }
-        const summary = typeof chapterResult.summary === 'string' ? chapterResult.summary : (chapterResult.summary?.text || '');
-        if (summary) {
-          learningAidsData.push({ type: 'SUMMARY', payload: { summary } });
-        }
-        const tasks = chapterResult.tasks || chapterResult.task || [];
-        if (Array.isArray(tasks) && tasks.length > 0) {
-          learningAidsData.push({ type: 'TASK', payload: { tasks } });
-        }
-
-        let moduleDifficultyWeight = globalState === 'ADVANCED' ? 3 : globalState === 'INTERMEDIATE' ? 2 : 1;
-
-        return {
-          title: chapter.title,
-          content: chapterResult.content || `## ${chapter.title}\n\nDetailed explanation of ${chapter.title}.`,
-          youtubeUrl: youtubeUrl,
-          orderIndex: index,
-          difficultyWeight: moduleDifficultyWeight,
-          learningAids: { create: learningAidsData }
-        };
-      });
-
-      const modulesData = await Promise.all(chapterPromises);
-      
-      // 4. Save Course to DB
+      // 4. Save Course to DB immediately (< 1.5s total time!)
       let normalizedDifficulty = dto.difficulty ? dto.difficulty.toUpperCase() : 'BEGINNER';
       if (!['BEGINNER', 'INTERMEDIATE', 'ADVANCED'].includes(normalizedDifficulty)) {
          normalizedDifficulty = 'BEGINNER';
@@ -1305,12 +1175,27 @@ Return strictly JSON matching this schema:
           recommendationUserId: dto.recommendationUserId || null,
           recommendationSourceId: dto.recommendationSourceId || null,
           modules: {
-            create: modulesData
+            create: initialModulesData
           }
         },
         include: {
           modules: true
         }
+      });
+
+      // Launch async background chapter synthesis (non-blocking)
+      this.populateModulesInBackground(
+        course.id,
+        course.modules,
+        outlineData.chapters,
+        dto,
+        cognitiveState,
+        adaptiveNote,
+        institutionalPromptContext,
+        openAlexPromptContext,
+        globalState
+      ).catch((bgErr) => {
+        this.logger.error(`Background chapter population failed for course ${course.id}: ${bgErr.message}`);
       });
 
       // Save persistent institutional references
@@ -1399,6 +1284,158 @@ Return strictly JSON matching this schema:
       this.logger.error("Failed to generate course", error.stack);
       return { success: false, message: error.message || "Generating the course failed due to an unexpected server issue." };
     }
+  }
+
+  private async populateModulesInBackground(
+    courseId: string,
+    createdModules: any[],
+    chapters: any[],
+    dto: any,
+    cognitiveState: string,
+    adaptiveNote: string,
+    institutionalPromptContext: string,
+    openAlexPromptContext: string,
+    globalState: string
+  ) {
+    this.logger.log(`Starting background chapter synthesis for ${chapters.length} modules in course ${courseId}...`);
+    
+    await Promise.all(chapters.map(async (chapter: any, index: number) => {
+      const targetModule = createdModules.find((m) => m.orderIndex === index);
+      if (!targetModule) return;
+
+      let scrapedContext = "";
+      try {
+        if (process.env.TAVILY_API_KEY) {
+          const tavilyResp = await axios.post('https://api.tavily.com/search', {
+            api_key: process.env.TAVILY_API_KEY,
+            query: `${dto.topic} ${chapter.searchQuery || chapter.title}`,
+            search_depth: "basic",
+            include_answer: true,
+            max_results: 2
+          }, { timeout: 1000 });
+          scrapedContext = tavilyResp.data.results?.map((r: any) => r.content).join("\n\n") || tavilyResp.data.answer || "";
+        }
+      } catch (err: any) {}
+
+      const combinedPrompt = `You are an elite academic professor and master curriculum writer crafting an exhaustive, textbook-grade course chapter.
+Topic: ${dto.topic}.
+Chapter Title: ${chapter.title}.
+Target Difficulty: ${dto.difficulty}.
+Learner Cognitive State: ${cognitiveState}. ${adaptiveNote}
+${institutionalPromptContext ? `\nINSTITUTIONAL SYLLABUS REFERENCE DATA:\n${institutionalPromptContext.substring(0, 3000)}\n` : ''}
+${openAlexPromptContext ? `\nOPENALEX ACADEMIC RESEARCH DATABASE LITERATURE:\n${openAlexPromptContext.substring(0, 3000)}\n` : ''}
+${scrapedContext ? `\nWEB RESEARCH CONTEXT:\n${scrapedContext.substring(0, 2500)}\n` : ''}
+
+COMPREHENSIVE DEPTH & COVERAGE REQUIREMENTS:
+Write a highly detailed, expansive, multi-section textbook chapter (aim for maximum depth and thorough coverage). Do NOT summarize or write high-level overviews. Cover all underlying mechanics and practical applications thoroughly across the following structured sub-sections:
+1. Executive Overview & Theoretical Foundations (Core background, key principles, historical evolution, and real-world significance).
+2. Deep Conceptual Mechanics & System Architecture (Detailed breakdown of workflows, mathematical formulas, comparative analysis tables, and structural design patterns).
+3. Production Code & Hands-On Technical Implementation (Comprehensive, fully functional syntax-highlighted code snippets e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql with inline explanations).
+4. Enterprise Edge Cases, Security & Performance Optimization (Common pitfalls, security vulnerabilities, performance bottlenecks, and industry best practices).
+
+ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
+1. APA 7TH EDITION IN-TEXT CITATIONS:
+   - Ground theories, empirical findings, definitions, and framework explanations using in-text APA 7th edition citations (e.g., (Author & Coauthor, Year) or (Author et al., Year)).
+   - Specifically cite literature from the OpenAlex research database context or institutional grounding materials provided above.
+
+2. VISUAL FORMATTING & PRESENTATION ELEGANCE:
+   - Structure the explanation with crisp Markdown section headers (##, ###).
+   - Use emoji callout blockquotes for key takeaways, terminology, and pitfalls:
+     > 💡 **Core Takeaway**: Essential concept summary.
+     > 📌 **Key Terminology**: Precise definitions.
+     > ⚠️ **Common Pitfall**: Typical student misconceptions and how to avoid them.
+   - Format all code examples with explicit syntax highlighting (e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql).
+   - Use Markdown tables or bulleted lists for comparative concepts.
+
+3. MANDATORY END-OF-CHAPTER REFERENCE & DOCUMENTATION SECTIONS:
+   - At the end of the chapter content, include a section titled:
+     ### References
+     List all cited sources in full formal APA 7th Edition format:
+     Author, A. A., & Author, B. B. (Year). *Title of publication*. Journal or Publisher Name. https://doi.org/10.xxxx/xxxx (or URL link).
+   - Immediately following the References section, include a section titled:
+     ### Further Reading & Official Documentation
+     Provide 2-4 curated recommendations (official documentation links, benchmark research papers, or classic textbooks) for students who want to deepen their mastery.
+
+Return strictly JSON matching this schema:
+{
+  "content": "Full, exhaustive, deeply detailed markdown chapter content incorporating in-text APA citations, sub-headings, callout boxes, code snippets, the ### References section, and the ### Further Reading & Official Documentation section.",
+  "quizzes": [{ "question": "Question text?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }],
+  "flashcards": [{ "front": "Concept", "back": "Definition" }],
+  "summary": "Comprehensive summary text of the chapter",
+  "tasks": [{ "title": "Practical Exercise", "description": "Problem prompt", "answer": "Step-by-step solution with explanations and syntax-highlighted code" }]
+}`;
+
+      let chapterResult: any = {};
+      try {
+        const completion = await this.callGroqWithRetry({
+          messages: [{ role: 'user', content: combinedPrompt }],
+          model: 'groq/compound-mini',
+          max_tokens: 8192,
+          response_format: { type: 'json_object' }
+        });
+        chapterResult = JSON.parse(this.cleanJsonString(completion.choices[0]?.message?.content || '{}'));
+      } catch (e: any) {
+        this.logger.warn(`Groq chapter generation failed for ${chapter.title} (${e.message}). Retrying with Gemini fallback...`);
+        try {
+          const geminiModel = this.genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+          const geminiRes = await geminiModel.generateContent(combinedPrompt + "\nOutput strictly valid JSON.");
+          chapterResult = JSON.parse(this.cleanJsonString(geminiRes.response.text() || '{}'));
+        } catch (gemErr) {
+          chapterResult = {
+            content: `## ${chapter.title}\n\nComprehensive exploration of ${chapter.title} for ${dto.topic}.`,
+            summary: `Summary of ${chapter.title}`
+          };
+        }
+      }
+
+      let youtubeUrl = null;
+      if (dto.includeYoutube && process.env.YOUTUBE_API_KEY) {
+        try {
+          const ytResp = await axios.get(`https://www.googleapis.com/youtube/v3/search`, {
+            params: {
+              key: process.env.YOUTUBE_API_KEY,
+              q: chapter.youtubeSearchQuery || `${dto.topic} ${chapter.title} tutorial`,
+              part: "snippet",
+              type: "video",
+              maxResults: 1
+            },
+            timeout: 1000
+          });
+          if (ytResp.data.items && ytResp.data.items.length > 0) {
+            youtubeUrl = `https://www.youtube.com/embed/${ytResp.data.items[0].id.videoId}`;
+          }
+        } catch (err: any) {}
+      }
+
+      const learningAidsData: any[] = [];
+      const quizzes = chapterResult.quizzes || chapterResult.quiz || [];
+      if (Array.isArray(quizzes) && quizzes.length > 0) {
+        learningAidsData.push({ type: 'QUIZ', payload: { quizzes } });
+      }
+      const flashcards = chapterResult.flashcards || chapterResult.flashcard || [];
+      if (Array.isArray(flashcards) && flashcards.length > 0) {
+        learningAidsData.push({ type: 'FLASHCARD', payload: { flashcards } });
+      }
+      const summary = typeof chapterResult.summary === 'string' ? chapterResult.summary : (chapterResult.summary?.text || '');
+      if (summary) {
+        learningAidsData.push({ type: 'SUMMARY', payload: { summary } });
+      }
+      const tasks = chapterResult.tasks || chapterResult.task || [];
+      if (Array.isArray(tasks) && tasks.length > 0) {
+        learningAidsData.push({ type: 'TASK', payload: { tasks } });
+      }
+
+      await this.prisma.module.update({
+        where: { id: targetModule.id },
+        data: {
+          content: chapterResult.content || `## ${chapter.title}\n\nDetailed explanation of ${chapter.title}.`,
+          youtubeUrl: youtubeUrl,
+          learningAids: { create: learningAidsData }
+        }
+      });
+    }));
+
+    this.logger.log(`Completed background chapter synthesis for course ${courseId}!`);
   }
 
   async getCourse(id: string, userId?: string) {

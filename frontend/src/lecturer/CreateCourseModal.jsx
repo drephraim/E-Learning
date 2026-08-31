@@ -120,7 +120,7 @@ const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
             userId,
             topic: title.trim(),
             difficulty: level === 'Level 100' ? 'BEGINNER' : level === 'Level 400' ? 'ADVANCED' : 'INTERMEDIATE',
-            chapters: 5,
+            chapters: Number(chapters) || 4,
             includeYoutube: true,
             groundingMode,
             visibility,

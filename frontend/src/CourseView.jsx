@@ -214,6 +214,33 @@ export default function CourseView() {
     }
   }, [isCompleted, userId, id]);
 
+  // Real-time auto-poll if any background chapter synthesis is still running
+  useEffect(() => {
+    if (!course || !course.modules || course.modules.length === 0) return;
+    const isSynthesizing = course.modules.some(
+      (m) => !m.content || m.content.includes('Synthesizing detailed')
+    );
+
+    if (isSynthesizing) {
+      const interval = setInterval(() => {
+        const fetchUrl = userId 
+          ? `${API_BASE_URL}/courses/${id}?userId=${userId}`
+          : `${API_BASE_URL}/courses/${id}`;
+
+        fetch(fetchUrl)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && data.modules) {
+              setCourse(data);
+            }
+          })
+          .catch(() => {});
+      }, 3000);
+
+      return () => clearInterval(interval);
+    }
+  }, [course, id, userId]);
+
   const saveProgress = async (moduleId, update) => {
     if (!userId) return;
     try {
