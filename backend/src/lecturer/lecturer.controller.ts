@@ -280,7 +280,7 @@ export class LecturerController {
 
   // --- CONTENT VALIDATION & ANALYTICS ENDPOINTS ---
   @Get('validation/:userId')
-  @Roles('LECTURER')
+  @Roles('LECTURER', 'STUDENT', 'ADMIN')
   async getValidationCourses(@Param('userId') userId: string) {
     return this.lecturerService.getValidationCourses(userId);
   }
