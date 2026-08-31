@@ -17,12 +17,17 @@ export const createServer = async () => {
 };
 
 export default async (req: any, res: any) => {
-  // Strip the /api prefix before forwarding to NestJS
-  req.url = req.url.replace(/^\/api/, '');
-  if (req.url === '') {
-    req.url = '/';
+  try {
+    // Strip the /api prefix before forwarding to NestJS
+    req.url = req.url.replace(/^\/api/, '');
+    if (req.url === '' || req.url === '/') {
+      req.url = '/';
+    }
+    
+    await createServer();
+    server(req, res);
+  } catch (err: any) {
+    console.error('Vercel Serverless Function Error:', err);
+    res.status(500).json({ error: 'Internal Server Error', message: err.message });
   }
-  
-  await createServer();
-  server(req, res);
 };

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DocumentProcessorService } from './document-processor.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 export interface CreateCourseDto {
   userId: string;
@@ -262,9 +263,14 @@ export class LecturerService {
     }
 
     // Save uploaded file buffer to disk for future re-processing
-    const uploadDir = path.join(process.cwd(), 'uploads', 'academic-materials');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    const baseDir = process.env.VERCEL ? os.tmpdir() : process.cwd();
+    const uploadDir = path.join(baseDir, 'uploads', 'academic-materials');
+    try {
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+    } catch (e: any) {
+      this.logger.warn(`Failed to create uploadDir: ${e.message}`);
     }
 
     const safeFileName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
