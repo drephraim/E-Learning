@@ -1052,18 +1052,16 @@ export class LecturerService {
   async getValidationCourses(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { lecturerProfile: true },
+      include: { lecturerProfile: true, studentProfile: true },
     });
 
-    const dept = user?.lecturerProfile?.department;
+    const dept = user?.lecturerProfile?.department || user?.studentProfile?.programme || user?.institution;
 
-    const whereOr: any[] = [{ userId }];
-    if (dept) {
-      whereOr.push({ department: { equals: dept, mode: 'insensitive' as const } });
-    }
-
+    // Fetch all user-generated courses across the platform so no created course is hidden
     const courses = await this.prisma.course.findMany({
-      where: { OR: whereOr },
+      where: {
+        userId: { not: 'system-bot' }
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { name: true, email: true, role: true } },
@@ -1075,8 +1073,17 @@ export class LecturerService {
       },
     });
 
+    // Sort: User's own courses or department courses first
+    const sortedCourses = courses.sort((a, b) => {
+      const aIsMine = a.userId === userId || (dept && a.department?.toLowerCase() === dept.toLowerCase());
+      const bIsMine = b.userId === userId || (dept && b.department?.toLowerCase() === dept.toLowerCase());
+      if (aIsMine && !bIsMine) return -1;
+      if (!aIsMine && bIsMine) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
     return Promise.all(
-      courses.map(async (c) => {
+      sortedCourses.map(async (c) => {
         const mode = c.groundingMode || 'INSTITUTIONAL';
 
         // 1. Fetch real OpenAlex research papers

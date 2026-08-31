@@ -1162,6 +1162,18 @@ ${openAlexPapers.map((paper, idx) =>
         }
       }
 
+      let resolvedDepartment = dto.department || null;
+      if (!resolvedDepartment && dto.userId && dto.userId !== 'system-bot') {
+        const creatorUser = await this.prisma.user.findUnique({
+          where: { id: dto.userId },
+          include: { lecturerProfile: true, studentProfile: true },
+        });
+        resolvedDepartment = creatorUser?.lecturerProfile?.department || 
+                             creatorUser?.studentProfile?.programme || 
+                             creatorUser?.institution || 
+                             null;
+      }
+
       const course = await this.prisma.course.create({
         data: {
           userId: dto.userId,
@@ -1170,7 +1182,7 @@ ${openAlexPapers.map((paper, idx) =>
           coverImage: coverImage,
           groundingMode: dto.groundingMode || (isInstitutionalMode ? 'INSTITUTIONAL' : isExternalMode ? 'EXTERNAL' : 'AI_ONLY'),
           visibility: (dto.visibility || 'PUBLIC').toUpperCase(),
-          department: dto.department || null,
+          department: resolvedDepartment,
           academicCourseId: validAcademicCourseId,
           recommendationUserId: dto.recommendationUserId || null,
           recommendationSourceId: dto.recommendationSourceId || null,
