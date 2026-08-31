@@ -1154,7 +1154,7 @@ ${openAlexPapers.map((paper, idx) =>
           }
         } catch (err: any) {}
         
-        const combinedPrompt = `You are an elite academic professor and master curriculum writer crafting a comprehensive textbook chapter.
+        const combinedPrompt = `You are an elite academic professor and master curriculum writer crafting an exhaustive, textbook-grade course chapter.
 Topic: ${dto.topic}.
 Chapter Title: ${chapter.title}.
 Target Difficulty: ${dto.difficulty}.
@@ -1162,6 +1162,13 @@ Learner Cognitive State: ${cognitiveState}. ${adaptiveNote}
 ${institutionalPromptContext ? `\nINSTITUTIONAL SYLLABUS REFERENCE DATA:\n${institutionalPromptContext.substring(0, 3000)}\n` : ''}
 ${openAlexPromptContext ? `\nOPENALEX ACADEMIC RESEARCH DATABASE LITERATURE:\n${openAlexPromptContext.substring(0, 3000)}\n` : ''}
 ${scrapedContext ? `\nWEB RESEARCH CONTEXT:\n${scrapedContext.substring(0, 2500)}\n` : ''}
+
+COMPREHENSIVE DEPTH & COVERAGE REQUIREMENTS:
+Write a highly detailed, expansive, multi-section textbook chapter (aim for maximum depth and thorough coverage). Do NOT summarize or write high-level overviews. Cover all underlying mechanics and practical applications thoroughly across the following structured sub-sections:
+1. Executive Overview & Theoretical Foundations (Core background, key principles, historical evolution, and real-world significance).
+2. Deep Conceptual Mechanics & System Architecture (Detailed breakdown of workflows, mathematical formulas, comparative analysis tables, and structural design patterns).
+3. Production Code & Hands-On Technical Implementation (Comprehensive, fully functional syntax-highlighted code snippets e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql with inline explanations).
+4. Enterprise Edge Cases, Security & Performance Optimization (Common pitfalls, security vulnerabilities, performance bottlenecks, and industry best practices).
 
 ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
 1. APA 7TH EDITION IN-TEXT CITATIONS:
@@ -1188,10 +1195,10 @@ ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
 
 Return strictly JSON matching this schema:
 {
-  "content": "Full, beautifully formatted markdown chapter content incorporating in-text APA citations, headings, callout boxes, code snippets, the ### References section, and the ### Further Reading & Official Documentation section.",
+  "content": "Full, exhaustive, deeply detailed markdown chapter content incorporating in-text APA citations, sub-headings, callout boxes, code snippets, the ### References section, and the ### Further Reading & Official Documentation section.",
   "quizzes": [{ "question": "Question text?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }],
   "flashcards": [{ "front": "Concept", "back": "Definition" }],
-  "summary": "Concise summary text of the chapter",
+  "summary": "Comprehensive summary text of the chapter",
   "tasks": [{ "title": "Practical Exercise", "description": "Problem prompt", "answer": "Step-by-step solution with explanations and syntax-highlighted code" }]
 }`;
         
@@ -1200,7 +1207,7 @@ Return strictly JSON matching this schema:
           const completion = await this.callGroqWithRetry({
             messages: [{ role: 'user', content: combinedPrompt }],
             model: 'groq/compound-mini',
-            max_tokens: 4096,
+            max_tokens: 8192,
             response_format: { type: 'json_object' }
           });
           chapterResult = JSON.parse(this.cleanJsonString(completion.choices[0]?.message?.content || '{}'));
@@ -2098,12 +2105,19 @@ Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volume
       }
 
       // B. Detailed Groq Synthesis
-      const detailPrompt = `You are an elite academic professor and master curriculum writer crafting a comprehensive textbook chapter.
+      const detailPrompt = `You are an elite academic professor and master curriculum writer crafting an exhaustive, textbook-grade course chapter.
 Topic: ${course.title}.
 Chapter Title: ${module.title}.
 Target Difficulty: ${difficulty}.
 Learner Cognitive State: ${cognitiveState}. ${adaptiveNote}
 Use the following research content to enrich your explanation with facts and deep details:\n\n${scrapedContext.substring(0, 15000)}\n\n
+
+COMPREHENSIVE DEPTH & COVERAGE REQUIREMENTS:
+Write a highly detailed, expansive, multi-section textbook chapter (aim for maximum depth and thorough coverage). Do NOT summarize or write high-level overviews. Cover all underlying mechanics and practical applications thoroughly across structured sub-sections:
+1. Executive Overview & Theoretical Foundations (Core background, key principles, historical evolution, and real-world significance).
+2. Deep Conceptual Mechanics & System Architecture (Detailed breakdown of workflows, mathematical formulas, comparative analysis tables, and structural design patterns).
+3. Production Code & Hands-On Technical Implementation (Comprehensive, fully functional syntax-highlighted code snippets e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql with inline explanations).
+4. Enterprise Edge Cases, Security & Performance Optimization (Common pitfalls, security vulnerabilities, performance bottlenecks, and industry best practices).
 
 ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
 1. APA 7TH EDITION IN-TEXT CITATIONS:
@@ -2122,7 +2136,7 @@ ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
       const detailCompletion = await this.callGroqWithRetry({
         messages: [{ role: 'user', content: detailPrompt }],
         model: 'groq/compound-mini',
-        max_tokens: 4096,
+        max_tokens: 8192,
       });
       const content = detailCompletion.choices[0]?.message?.content || '';
 
