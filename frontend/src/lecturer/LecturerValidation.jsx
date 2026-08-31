@@ -212,13 +212,13 @@ const LecturerValidation = () => {
             </div>
 
             {/* Validation Metrics Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: 14, borderRadius: 10, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>AUTHENTICITY SCORE</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#34d399', marginTop: 4 }}>
                   {selectedCourse.authenticityScore}%
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 2 }}>High Academic Grounding</div>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 2 }}>Calculated via Scientific Audit Engine</div>
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: 14, borderRadius: 10, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
@@ -230,13 +230,72 @@ const LecturerValidation = () => {
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: 14, borderRadius: 10, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>OPENALEX PAPERS</div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>OPENALEX CITATIONS</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#c084fc', marginTop: 4 }}>
-                  {selectedCourse.openAlexCitationsCount} Citations
+                  {Number(selectedCourse.openAlexCitationsCount || 0).toLocaleString()}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 2 }}>Matched Peer-Reviewed Works</div>
               </div>
             </div>
+
+            {/* 4-Pillar Scientific Audit Score Breakdown */}
+            {selectedCourse.auditBreakdown && (
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 12, padding: 16, marginBottom: 24, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+                <h3 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <Award size={16} /> 4-Pillar Scientific Audit Score Breakdown
+                </h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: 12, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.78rem', color: '#e2e8f0', fontWeight: 600 }}>Citations & Literature Coverage</span>
+                      <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 800 }}>
+                        {selectedCourse.auditBreakdown.citationsCoverage.score} / {selectedCourse.auditBreakdown.citationsCoverage.max} pts
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: 0 }}>
+                      {selectedCourse.auditBreakdown.citationsCoverage.details}
+                    </p>
+                  </div>
+
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: 12, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.78rem', color: '#e2e8f0', fontWeight: 600 }}>Academic Grounding Level</span>
+                      <span style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: 800 }}>
+                        {selectedCourse.auditBreakdown.groundingIntegrity.score} / {selectedCourse.auditBreakdown.groundingIntegrity.max} pts
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: 0 }}>
+                      {selectedCourse.auditBreakdown.groundingIntegrity.details}
+                    </p>
+                  </div>
+
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: 12, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.78rem', color: '#e2e8f0', fontWeight: 600 }}>Textbook Structural Depth</span>
+                      <span style={{ fontSize: '0.8rem', color: '#c084fc', fontWeight: 800 }}>
+                        {selectedCourse.auditBreakdown.structuralDepth.score} / {selectedCourse.auditBreakdown.structuralDepth.max} pts
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: 0 }}>
+                      {selectedCourse.auditBreakdown.structuralDepth.details}
+                    </p>
+                  </div>
+
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: 12, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.78rem', color: '#e2e8f0', fontWeight: 600 }}>APA References & Documentation</span>
+                      <span style={{ fontSize: '0.8rem', color: '#f472b6', fontWeight: 800 }}>
+                        {selectedCourse.auditBreakdown.referencesCompliance.score} / {selectedCourse.auditBreakdown.referencesCompliance.max} pts
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: 0 }}>
+                      {selectedCourse.auditBreakdown.referencesCompliance.details}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* OpenAlex Matched Peer-Reviewed Papers Section */}
             <div style={{ marginBottom: 24 }}>
@@ -259,8 +318,13 @@ const LecturerValidation = () => {
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'white' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: 8 }}>
                         {paper.title}
+                        {paper.citationsCount > 0 && (
+                          <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'rgba(192, 132, 252, 0.15)', color: '#c084fc' }}>
+                            {Number(paper.citationsCount).toLocaleString()} Citations
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: 3 }}>
                         {paper.authors} • <em>{paper.journal}</em> ({paper.year})
@@ -271,7 +335,7 @@ const LecturerValidation = () => {
                     </div>
 
                     <a
-                      href={`https://doi.org/${paper.doi}`}
+                      href={paper.doi?.startsWith('http') ? paper.doi : `https://doi.org/${paper.doi}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="form-input"
