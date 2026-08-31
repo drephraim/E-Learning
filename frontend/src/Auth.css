@@ -3,26 +3,30 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-color);
-  background-image: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.15) 0%, rgba(15, 23, 42, 0) 70%);
-  padding: 24px;
+  background: var(--bg-color, #0c0e12);
+  background-image: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, rgba(12, 14, 18, 0) 70%);
+  padding: 32px 16px;
 }
 
 .auth-container {
   width: 100%;
-  max-width: 480px;
+  max-width: 540px;
 }
 
 .auth-card {
   background: linear-gradient(160deg, #131728 0%, #0d101a 100%);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
-  padding: 48px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  padding: 36px 36px 32px 36px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.auth-header {
+  margin-bottom: 20px;
 }
 
 .auth-title {
-  font-size: 2rem;
+  font-size: 1.85rem;
   font-weight: 800;
   color: white;
   margin-bottom: 8px;
@@ -31,52 +35,208 @@
 
 .auth-subtitle {
   color: #94a3b8;
-  font-size: 0.95rem;
-  margin-bottom: 32px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 0;
 }
 
 .auth-error {
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: #f87171;
   padding: 12px 16px;
   border-radius: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   font-size: 0.85rem;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
+/* --- Role Selector Tabs (Student vs Lecturer) --- */
+.auth-role-tabs {
+  display: flex;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 6px;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.role-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94a3b8;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.role-tab:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.role-tab.active.student {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(79, 70, 229, 0.25) 100%);
+  color: #818cf8;
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.role-tab.active.lecturer {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.5);
+  box-shadow: 0 4px 12px rgba(52, 211, 153, 0.2);
+}
+
+.role-tab-icon {
+  font-size: 1.2rem;
+}
+
+/* --- Mode Switcher Tabs (Sign In vs Sign Up) --- */
+.auth-mode-switch {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+/* --- Form Layout & Controls --- */
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 11px 14px;
+  color: white;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.form-input::placeholder {
+  color: #64748b;
 }
 
 .auth-submit {
   width: 100%;
-  margin-top: 8px;
-  padding: 16px;
-  border-radius: 16px;
-  font-size: 1.05rem;
+  margin-top: 6px;
+  padding: 13px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.auth-submit.lecturer-btn {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+}
+
+.auth-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+}
+
+.auth-submit.lecturer-btn:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .auth-divider {
   display: flex;
   align-items: center;
-  margin: 32px 0;
+  margin: 20px 0;
   color: #475569;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
 .auth-divider::before, .auth-divider::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .auth-divider span {
-  padding: 0 16px;
+  padding: 0 14px;
 }
 
 .btn-google {
@@ -88,9 +248,9 @@
   background: rgba(255, 255, 255, 0.95);
   color: #1e293b;
   border: none;
-  padding: 14px;
-  border-radius: 16px;
-  font-size: 0.95rem;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -98,30 +258,31 @@
 
 .btn-google:hover {
   background: white;
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
 .google-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .auth-toggle {
   text-align: center;
-  margin-top: 32px;
+  margin-top: 20px;
   color: #94a3b8;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 .toggle-btn {
   background: transparent;
   border: none;
-  color: var(--accent-primary);
-  font-weight: 600;
+  color: #818cf8;
+  font-weight: 700;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   padding: 0;
+  margin-left: 6px;
   transition: color 0.2s;
 }
 
@@ -132,6 +293,10 @@
 
 @media (max-width: 640px) {
   .auth-card {
-    padding: 32px 24px;
+    padding: 24px 18px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 }

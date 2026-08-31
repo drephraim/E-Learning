@@ -63,3 +63,5 @@ env/
 .env_python/
 
 .vercel
+backend/uploads/
+

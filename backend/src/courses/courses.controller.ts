@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Query, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Query, Delete, Res } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 
 @Controller('courses')
@@ -7,11 +7,62 @@ export class CoursesController {
 
   @Post('generate')
   async generateCourse(
-    @Body() dto: { userId: string, topic: string, difficulty: string, chapters: number, includeYoutube: boolean }
+    @Body()
+    dto: {
+      userId: string;
+      topic: string;
+      difficulty: string;
+      chapters: number;
+      includeYoutube: boolean;
+      groundingMode?: string;
+      academicCourseId?: string;
+      academicMaterialIds?: string[];
+      recommendationUserId?: string;
+      recommendationSourceId?: string;
+    },
   ) {
     return await this.coursesService.generateCourse(dto);
   }
 
+  // --- PHASE 3: INSTITUTIONAL SELECTION & PREVIEW ENDPOINTS ---
+  @Get('institutional-courses')
+  async getInstitutionalCourses(
+    @Query('userId') userId?: string,
+    @Query('search') search?: string,
+  ) {
+    return await this.coursesService.getInstitutionalCourses(userId, search);
+  }
+
+  @Get('institutional-courses/:id/materials')
+  async getInstitutionalMaterials(
+    @Param('id') courseId: string,
+    @Query('userId') userId?: string,
+  ) {
+    return await this.coursesService.getInstitutionalMaterials(courseId, userId);
+  }
+
+  @Get('materials/:id/preview')
+  async getMaterialPreview(
+    @Param('id') materialId: string,
+    @Query('userId') userId?: string,
+  ) {
+    return await this.coursesService.getMaterialPreview(materialId, userId);
+  }
+
+  @Get('materials/:id/download')
+  async downloadMaterial(
+    @Param('id') materialId: string,
+    @Res() res: any,
+  ) {
+    return await this.coursesService.downloadMaterialFile(materialId, res);
+  }
+
+  @Get(':id/references')
+  async getCourseReferences(@Param('id') courseId: string) {
+    return await this.coursesService.getCourseReferences(courseId);
+  }
+
+  // --- EXISTING COURSE ENDPOINTS ---
   @Get('all')
   async getAllCourses(@Query('userId') userId?: string) {
     return await this.coursesService.getAllCourses(userId);

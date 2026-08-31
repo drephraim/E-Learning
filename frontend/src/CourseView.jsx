@@ -95,6 +95,27 @@ export default function CourseView() {
 
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
 
+  // Phase 3 References Used Modal State
+  const [showReferencesModal, setShowReferencesModal] = useState(false);
+  const [referencesData, setReferencesData] = useState(null);
+  const [loadingReferences, setLoadingReferences] = useState(false);
+
+  const fetchReferences = async () => {
+    setLoadingReferences(true);
+    setShowReferencesModal(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/courses/${id}/references`);
+      if (res.ok) {
+        const data = await res.json();
+        setReferencesData(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch references', err);
+    } finally {
+      setLoadingReferences(false);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
@@ -491,9 +512,78 @@ export default function CourseView() {
             &larr; Back to Dashboard
           </Link>
           <h2 className="course-sidebar-title">{course.title}</h2>
-          <span className="course-difficulty-badge">
-            {course.targetDifficulty}
-          </span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span className="course-difficulty-badge">
+              {course.targetDifficulty}
+            </span>
+
+            {course.groundingMode === 'HYBRID' ? (
+              <span
+                style={{
+                  background: 'rgba(99, 102, 241, 0.2)',
+                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  color: '#818cf8',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+                onClick={fetchReferences}
+                title="Click to view combined institutional and academic research references"
+              >
+                🔬 Hybrid Grounded (Notes + OpenAlex)
+              </span>
+            ) : course.groundingMode === 'INSTITUTIONAL' ? (
+              <span
+                style={{
+                  background: 'rgba(52, 211, 153, 0.15)',
+                  border: '1px solid rgba(52, 211, 153, 0.3)',
+                  color: '#34d399',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+                onClick={fetchReferences}
+                title="Click to view academic references used"
+              >
+                🎓 Institutional Grounded
+              </span>
+            ) : course.groundingMode === 'EXTERNAL' ? (
+              <span
+                style={{
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  color: '#60a5fa',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+                onClick={fetchReferences}
+                title="Click to view OpenAlex academic references used"
+              >
+                🌐 OpenAlex Database Grounded
+              </span>
+            ) : (
+              <span
+                style={{
+                  background: 'rgba(99, 102, 241, 0.12)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  color: '#818cf8',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                }}
+              >
+                ⚡ AI Knowledge Only
+              </span>
+            )}
+          </div>
         </div>
         
         <div className="course-modules-container">
@@ -700,8 +790,8 @@ export default function CourseView() {
                           const lang = match ? match[1] : '';
                           const codeString = String(children).replace(/\n$/, '');
 
-                          if (!inline && lang) {
-                            return <CodeRunner code={codeString} language={lang} />;
+                          if (!inline && (lang || codeString.includes('\n'))) {
+                            return <CodeRunner code={codeString} language={lang || 'javascript'} />;
                           }
                           return <code className={className} style={{ background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, fontSize: '0.9em', fontFamily: '"Fira Code", Consolas, monospace' }} {...props}>{children}</code>;
                         }
@@ -782,6 +872,90 @@ export default function CourseView() {
         </div>
 
       </div>
+
+      {/* Phase 3 Academic References Used Modal */}
+      {showReferencesModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', zIndex: 10500,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', borderRadius: 20, padding: 32,
+            maxWidth: 580, width: '100%', maxHeight: '85vh', overflowY: 'auto',
+            border: '1px solid var(--border)', boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <span style={{ 
+                  padding: '2px 8px', 
+                  borderRadius: 4, 
+                  fontSize: '0.72rem', 
+                  fontWeight: 800, 
+                  background: referencesData?.groundingMode === 'HYBRID' ? 'rgba(99, 102, 241, 0.2)' : referencesData?.groundingMode === 'EXTERNAL' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(52, 211, 153, 0.2)', 
+                  color: referencesData?.groundingMode === 'HYBRID' ? '#818cf8' : referencesData?.groundingMode === 'EXTERNAL' ? '#60a5fa' : '#34d399', 
+                  textTransform: 'uppercase' 
+                }}>
+                  {referencesData?.groundingMode === 'HYBRID' ? '🔬 HYBRID GROUNDED (NOTES + OPENALEX)' : referencesData?.groundingMode === 'EXTERNAL' ? '🌐 OPENALEX DATABASE GROUNDED' : '🎓 INSTITUTIONAL GROUNDED'}
+                </span>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'white', marginTop: 6, marginBottom: 0 }}>Academic References Used</h3>
+              </div>
+              <button 
+                onClick={() => setShowReferencesModal(false)}
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'white', width: 32, height: 32, borderRadius: 8, cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {loadingReferences ? (
+              <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>Loading references used...</p>
+            ) : referencesData?.references && referencesData.references.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {referencesData.references.map((ref, idx) => (
+                  <div key={ref.id || idx} style={{
+                    padding: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, gap: 10 }}>
+                      <span style={{ fontWeight: 700, color: 'white', fontSize: '0.92rem' }}>
+                        {idx + 1}. {ref.title}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 4, background: ref.sourceType === 'OPENALEX' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(99, 102, 241, 0.15)', color: ref.sourceType === 'OPENALEX' ? '#60a5fa' : '#818cf8', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {ref.sourceType === 'OPENALEX' ? '🌐 OpenAlex Paper' : ref.materialType?.replace('_', ' ') || 'Institutional'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                      {ref.sourceType === 'OPENALEX' ? (
+                        <div style={{ marginTop: 4 }}>
+                          Source: OpenAlex Global Research Database
+                          {ref.externalSourceId && (
+                            <a href={ref.externalSourceId} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline', marginLeft: 8, fontWeight: 600 }}>
+                              View Paper / DOI ↗
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        `Lecturer: ${ref.academicMaterial?.lecturer?.name || 'Department Lecturer'} • Version Snapshot: v${ref.versionSnapshot || 1}`
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {referencesData.generationRecord && (
+                  <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '0.78rem', color: '#64748b' }}>
+                    Retrieved Chunks: {referencesData.generationRecord.retrievedChunkCount} • Model: {referencesData.generationRecord.modelProvider} ({referencesData.generationRecord.modelName})
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8' }}>
+                This course was generated using standard AI knowledge synthesis without institutional reference materials.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

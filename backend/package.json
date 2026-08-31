@@ -7,6 +7,7 @@
     "start": "ts-node src/main.ts",
     "start:dev": "ts-node src/main.ts",
     "dev": "ts-node src/main.ts",
+    "prisma:generate": "prisma generate",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -22,12 +23,16 @@
     "axios": "^1.13.6",
     "cors": "^2.8.6",
     "groq-sdk": "^1.1.1",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.1",
+    "pdf-parse": "^2.4.5",
     "prisma": "^6.19.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
     "@types/node": "^25.5.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2"

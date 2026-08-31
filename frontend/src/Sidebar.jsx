@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { auth } from './firebase';
-import { signOut } from 'firebase/auth';
+import { useAuth } from './AuthContext';
 import { Sparkles, Home, Compass, Plus, User, LogOut } from 'lucide-react';
 import { API_BASE_URL } from './config';
 import './Sidebar.css';
@@ -15,13 +14,14 @@ const levelColors = {
 const Sidebar = ({ onOpenModal }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentUser, dbUser, logout } = useAuth();
   const [cognitiveState, setCognitiveState] = useState('BEGINNER');
 
   useEffect(() => {
     const fetchLevel = async () => {
-      if (!auth.currentUser) return;
+      if (!currentUser) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/users/${auth.currentUser.uid}`);
+        const res = await fetch(`${API_BASE_URL}/users/${currentUser.uid}`);
         if (res.ok) {
           const data = await res.json();
           if (data.cognitiveState) setCognitiveState(data.cognitiveState);
@@ -29,15 +29,11 @@ const Sidebar = ({ onOpenModal }) => {
       } catch (_) {}
     };
     fetchLevel();
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) fetchLevel();
-    });
-    return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      await logout();
       navigate('/auth');
     } catch (err) {
       console.error('Sign out failed', err);
@@ -46,13 +42,16 @@ const Sidebar = ({ onOpenModal }) => {
 
   const isActive = (path) => location.pathname === path;
 
+  const studentName = dbUser?.name || currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Student User';
+  const studentInitials = studentName.substring(0, 2).toUpperCase();
+
   return (
     <>
       <div className="sidebar">
         <div className="sidebar-top">
           <div className="sidebar-logo" onClick={() => navigate('/dashboard')}>
             <div className="logo-icon"><Sparkles size={16} color="#0c0e12" /></div>
-            <span className="logo-text">Adaptive<span style={{color: 'var(--orange)'}}>Learn</span></span>
+            <span className="logo-text">Adaptive<span style={{ color: 'var(--orange)' }}>Learn</span></span>
           </div>
           <nav className="sidebar-nav">
             <div
@@ -69,7 +68,7 @@ const Sidebar = ({ onOpenModal }) => {
             </div>
             <div
               className="nav-item"
-              onClick={(e) => {
+              onClick={() => {
                 if (onOpenModal) {
                   onOpenModal();
                 } else {
@@ -90,22 +89,34 @@ const Sidebar = ({ onOpenModal }) => {
         <div className="sidebar-bottom">
           <div className="user-profile">
             <div className="avatar">
-              {auth.currentUser?.email?.substring(0, 2).toUpperCase() || 'AD'}
+              {studentInitials}
             </div>
             <div className="user-info">
-              <div className="user-name">{auth.currentUser?.displayName || 'Student User'}</div>
-              <div style={{
-                display: 'inline-block',
-                marginTop: 4,
-                padding: '2px 8px',
-                borderRadius: 4,
-                fontSize: '0.65rem',
-                fontWeight: 700,
-                letterSpacing: '0.05em',
-                background: levelColors[cognitiveState]?.bg || levelColors.BEGINNER.bg,
-                color: levelColors[cognitiveState]?.color || levelColors.BEGINNER.color,
-              }}>
-                {cognitiveState}
+              <div className="user-name" title={studentName}>{studentName}</div>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: 4 }}>
+                <span style={{
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.05em',
+                  background: levelColors[cognitiveState]?.bg || levelColors.BEGINNER.bg,
+                  color: levelColors[cognitiveState]?.color || levelColors.BEGINNER.color,
+                }}>
+                  {cognitiveState}
+                </span>
+                {dbUser?.studentProfile?.level && (
+                  <span style={{
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    color: '#818cf8',
+                  }}>
+                    {dbUser.studentProfile.level}
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -27,12 +27,20 @@ datasource db {
 // }
 
 model User {
-  id              String         @id @default(uuid())
-  email           String         @unique
+  id              String            @id @default(uuid())
+  email           String            @unique
+  firstName       String?
+  lastName        String?
   name            String?
   passwordHash    String?
-  cognitiveState  String         @default("BEGINNER")
-  createdAt       DateTime       @default(now())
+  role            String            @default("STUDENT") // "STUDENT" | "LECTURER"
+  institution     String?
+  cognitiveState  String            @default("BEGINNER")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt @default(now())
+
+  studentProfile  StudentProfile?
+  lecturerProfile LecturerProfile?
 
   courses         Course[]
   progress        UserProgress[]
@@ -40,6 +48,180 @@ model User {
   topicStates     TopicState[]
   courseProgress  UserCourseProgress[]
   reviews         RatingReview[]
+  academicMaterials AcademicMaterial[]
+  academicCourses   AcademicCourse[]
+  studentEnrollments CourseEnrollment[] @relation("StudentEnrollments")
+  lecturerInvites     CourseEnrollment[] @relation("LecturerInvites")
+}
+
+model StudentProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  programme   String
+  level       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LecturerProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  title              String
+  department         String
+  secondaryDepartments String[] @default([])
+  coursesTaught       String[] @default([])
+  specialization     String?
+  officeHours        String?
+  phone              String?
+  bio                String?
+  verificationStatus String   @default("VERIFIED") // PENDING, VERIFIED, REJECTED
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt @default(now())
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AcademicCourse {
+  id           String             @id @default(uuid())
+  lecturerId   String
+  title        String
+  code         String
+  description  String?
+  institution  String
+  department   String
+  programme    String
+  level        String
+  semester     String
+  academicYear String
+  status       String             @default("PUBLISHED") // DRAFT, PUBLISHED, ARCHIVED
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt @default(now())
+
+  lecturer     User               @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  materials    AcademicMaterial[]
+  syllabi      Syllabus[]
+  chunks       AcademicChunk[]
+  generatedCourses Course[]
+}
+
+model AcademicMaterial {
+  id               String            @id @default(uuid())
+  lecturerId       String
+  courseId         String?
+  title            String
+  description      String?
+  materialType     String            // COURSE_SYLLABUS, COURSE_OUTLINE, LECTURE_NOTES, RESEARCH_PAPER, READING_MATERIAL, LAB_MANUAL, ASSIGNMENT_GUIDE, OTHER
+  fileName         String
+  storageKey       String
+  mimeType         String
+  fileSize         Int
+  visibility       String            @default("AVAILABLE") // PRIVATE, AVAILABLE, ARCHIVED
+  processingStatus String            @default("READY")     // UPLOADED, PROCESSING, READY, FAILED
+  sourceCategory   String            @default("INSTITUTIONAL") // INSTITUTIONAL, SCHOLARLY_DATABASE, GENERAL_WEB
+  department       String?
+  programme        String?
+  level            String?
+  fileUrl          String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt @default(now())
+
+  lecturer         User              @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  course           AcademicCourse?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  documentContent  DocumentContent?
+  chunks           AcademicChunk[]
+  syllabi          Syllabus[]
+  generatedReferences GeneratedCourseReference[]
+}
+
+model DocumentContent {
+  id                String           @id @default(uuid())
+  materialId        String           @unique
+  rawText           String
+  cleanedText       String
+  wordCount         Int
+  processingVersion Int              @default(1)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt @default(now())
+
+  material          AcademicMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+}
+
+model AcademicChunk {
+  id             String           @id @default(uuid())
+  materialId     String
+  courseId       String?
+  content        String
+  chunkIndex     Int
+  sectionTitle   String?
+  pageNumber     Int?
+  tokenCount     Int
+  sourceCategory String           @default("INSTITUTIONAL")
+  createdAt      DateTime         @default(now())
+
+  material       AcademicMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  course         AcademicCourse?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+}
+
+model Syllabus {
+  id           String              @id @default(uuid())
+  courseId     String
+  materialId   String?
+  lecturerId   String
+  title        String
+  version      Int                 @default(1)
+  academicYear String?
+  isCurrent    Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt @default(now())
+
+  course       AcademicCourse      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  material     AcademicMaterial?   @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  objectives   SyllabusObjective[]
+  outcomes     SyllabusOutcome[]
+  topics       SyllabusTopic[]
+  readings     SyllabusReading[]
+}
+
+model SyllabusObjective {
+  id         String   @id @default(uuid())
+  syllabusId String
+  text       String
+  orderIndex Int      @default(0)
+
+  syllabus   Syllabus @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
+}
+
+model SyllabusOutcome {
+  id         String   @id @default(uuid())
+  syllabusId String
+  text       String
+  orderIndex Int      @default(0)
+
+  syllabus   Syllabus @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
+}
+
+model SyllabusTopic {
+  id          String   @id @default(uuid())
+  syllabusId  String
+  title       String
+  description String?
+  weekNumber  Int?
+  orderIndex  Int      @default(0)
+
+  syllabus    Syllabus @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
+}
+
+model SyllabusReading {
+  id         String   @id @default(uuid())
+  syllabusId String
+  citation   String
+  title      String?
+  author     String?
+  year       String?
+
+  syllabus   Syllabus @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
 }
 
 model TopicState {
@@ -57,21 +239,73 @@ model TopicState {
 }
 
 model Course {
-  id               String         @id @default(uuid())
-  userId           String
-  title            String
-  targetDifficulty String
-  coverImage       String?
-  createdAt        DateTime       @default(now())
-  averageRating    Float          @default(0)
-  totalRatings     Int            @default(0)
+  id                     String                     @id @default(uuid())
+  userId                 String
+  title                  String
+  targetDifficulty       String
+  coverImage             String?
+  groundingMode          String                     @default("AI_ONLY") // AI_ONLY, INSTITUTIONAL, ACADEMIC_DATABASES, HYBRID
+  visibility             String                     @default("PUBLIC")  // PUBLIC, PRIVATE
+  department             String?
+  academicCourseId       String?
+  createdAt              DateTime                   @default(now())
+  averageRating          Float                      @default(0)
+  totalRatings           Int                        @default(0)
   recommendationSourceId String?
   recommendationUserId   String?
 
-  user             User           @relation(fields: [userId], references: [id])
-  modules          Module[]
-  ratings          RatingReview[]
-  userProgress     UserCourseProgress[]
+  user                   User                       @relation(fields: [userId], references: [id])
+  academicCourse         AcademicCourse?            @relation(fields: [academicCourseId], references: [id], onDelete: SetNull)
+  modules                Module[]
+  ratings                RatingReview[]
+  userProgress           UserCourseProgress[]
+  references             GeneratedCourseReference[]
+  generationRecord       CourseGenerationRecord?
+  enrollments            CourseEnrollment[]
+}
+
+model CourseEnrollment {
+  id           String   @id @default(uuid())
+  courseId     String
+  studentEmail String
+  studentId    String?
+  lecturerId   String
+  status       String   @default("ENROLLED") // ENROLLED, INVITED, DECLINED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt @default(now())
+
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student      User?    @relation("StudentEnrollments", fields: [studentId], references: [id], onDelete: SetNull)
+  lecturer     User     @relation("LecturerInvites", fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, studentEmail])
+}
+
+model GeneratedCourseReference {
+  id                 String            @id @default(uuid())
+  courseId           String
+  academicMaterialId String?
+  externalSourceId   String?
+  sourceType         String            // INSTITUTIONAL, OPENALEX, CORE, SEMANTIC_SCHOLAR, CROSSREF, ARXIV
+  title              String
+  materialType       String?
+  versionSnapshot    Int?              @default(1)
+  createdAt          DateTime          @default(now())
+
+  course             Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  academicMaterial   AcademicMaterial? @relation(fields: [academicMaterialId], references: [id], onDelete: SetNull)
+}
+
+model CourseGenerationRecord {
+  id                  String   @id @default(uuid())
+  courseId            String   @unique
+  groundingMode       String
+  modelProvider       String   @default("Groq")
+  modelName           String   @default("groq/compound / groq/compound-mini")
+  retrievedChunkCount Int      @default(0)
+  generatedAt         DateTime @default(now())
+
+  course              Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
 
 model Module {

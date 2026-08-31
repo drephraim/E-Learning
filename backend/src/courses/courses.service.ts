@@ -20,6 +20,44 @@ export class CoursesService {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
   }
 
+  private cleanJsonString(str: string): string {
+    if (!str) return '{}';
+    let cleaned = str.trim();
+
+    // 1. Strip markdown fences if present
+    cleaned = cleaned.replace(/^```(json)?\n?/gi, '').replace(/\n?```$/gi, '').trim();
+
+    // 2. Extract strictly between the first '{' or '[' and the last '}' or ']'
+    const firstBrace = cleaned.indexOf('{');
+    const firstBracket = cleaned.indexOf('[');
+    
+    let firstIndex = -1;
+    let isArray = false;
+
+    if (firstBrace !== -1 && firstBracket !== -1) {
+      if (firstBrace < firstBracket) {
+        firstIndex = firstBrace;
+      } else {
+        firstIndex = firstBracket;
+        isArray = true;
+      }
+    } else if (firstBrace !== -1) {
+      firstIndex = firstBrace;
+    } else if (firstBracket !== -1) {
+      firstIndex = firstBracket;
+      isArray = true;
+    }
+
+    if (firstIndex !== -1) {
+      const lastIndex = isArray ? cleaned.lastIndexOf(']') : cleaned.lastIndexOf('}');
+      if (lastIndex > firstIndex) {
+        cleaned = cleaned.substring(firstIndex, lastIndex + 1);
+      }
+    }
+
+    return cleaned.trim();
+  }
+
   private async callGroqWithRetry(params: any, retries = 4, delayMs = 3000): Promise<any> {
     for (let i = 0; i < retries; i++) {
       try {
@@ -39,7 +77,7 @@ export class CoursesService {
   private async generateGeminiSVG(topic: string): Promise<string> {
     try {
       this.logger.log(`Querying Gemini to generate custom SVG cover for: "${topic}"`);
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
       const prompt = `You are a professional graphic designer. Create a premium, modern, topic-aware vector SVG cover for a course on "${topic}".
 The SVG must have a viewBox="0 0 800 450" and width="800" height="450". It should use a dark theme matching a modern tech website (e.g. dark background gradients: #0c0e12, #161922, etc.).
 It must include:
@@ -70,17 +108,17 @@ Return ONLY valid, well-formed SVG code starting with <svg> and ending with </sv
 
   private async generateCourseCover(topic: string, coverTheme?: any): Promise<string> {
     try {
-      this.logger.log(`Generating custom WOW-factor themed vector cover for: "${topic}"`);
-      let svg = await this.generateGeminiSVG(topic);
+      this.logger.log(`Generating fast vector cover for: "${topic}"`);
+      const geminiPromise = this.generateGeminiSVG(topic);
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 600));
+      let svg = await Promise.race([geminiPromise, timeoutPromise]);
       if (!svg) {
-        this.logger.log(`Falling back to procedural SVG generation for: "${topic}"`);
         svg = this.generateProceduralSVG(topic, coverTheme);
       }
       const base64 = Buffer.from(svg).toString('base64');
       return `data:image/svg+xml;base64,${base64}`;
     } catch (err: any) {
-      this.logger.error(`Failed to generate course cover for "${topic}": ${err.message}`);
-      const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450"><rect width="800" height="450" fill="#111"/></svg>`;
+      const fallbackSvg = this.generateProceduralSVG(topic, coverTheme);
       const base64 = Buffer.from(fallbackSvg).toString('base64');
       return `data:image/svg+xml;base64,${base64}`;
     }
@@ -500,34 +538,462 @@ Return ONLY valid, well-formed SVG code starting with <svg> and ending with </sv
     </svg>`;
   }
 
-  async generateCourse(dto: { userId: string, topic: string, difficulty: string, chapters: number, includeYoutube: boolean, recommendationUserId?: string, recommendationSourceId?: string }) {
-    this.logger.log(`Starting AI course generation for topic: "${dto.topic}"`);
-    this.logger.log(`Generation settings: difficulty=${dto.difficulty}, chapters=${dto.chapters}, youtube=${dto.includeYoutube}`);
+  async getInstitutionalCourses(userId?: string, search?: string) {
+    let studentUser = null;
+    if (userId) {
+      studentUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { studentProfile: true },
+      });
+    }
+
+    // 1. Fetch Published Academic Courses
+    const academicCourses = await this.prisma.academicCourse.findMany({
+      include: {
+        lecturer: {
+          select: {
+            name: true,
+            email: true,
+            institution: true,
+            lecturerProfile: { select: { title: true, department: true } },
+          },
+        },
+        materials: {
+          where: { visibility: 'AVAILABLE', processingStatus: 'READY' },
+          select: { id: true, title: true, fileName: true, fileSize: true, materialType: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const resultList: any[] = academicCourses.map((course) => {
+      const lecturerTitle = course.lecturer?.lecturerProfile?.title || 'Dr.';
+      const lecturerNameStr = course.lecturer?.name && course.lecturer.name !== 'undefined undefined' ? course.lecturer.name : 'Faculty';
+      const matCount = course.materials?.length || 0;
+
+      return {
+        ...course,
+        lecturerName: `${lecturerTitle} ${lecturerNameStr}`,
+        availableMaterialCount: matCount,
+        materialCount: matCount,
+      };
+    });
+
+    // 2. Fetch Standalone Academic Materials (uploaded without an AcademicCourse link)
+    const standaloneMaterials = await this.prisma.academicMaterial.findMany({
+      where: {
+        courseId: null,
+        visibility: 'AVAILABLE',
+        processingStatus: 'READY',
+      },
+      include: {
+        lecturer: {
+          select: {
+            name: true,
+            email: true,
+            institution: true,
+            lecturerProfile: { select: { title: true, department: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    standaloneMaterials.forEach((mat) => {
+      const codeMatch = mat.title.match(/([A-Z]{3,4}\s*\d{3,4})/i) || mat.fileName.match(/([A-Z]{3,4}\s*\d{3,4})/i);
+      const lecturerTitle = mat.lecturer?.lecturerProfile?.title || 'Dr.';
+      const lecturerNameStr = mat.lecturer?.name && mat.lecturer.name !== 'undefined undefined' ? mat.lecturer.name : 'Faculty';
+
+      resultList.push({
+        id: `standalone-${mat.id}`,
+        title: mat.title,
+        code: codeMatch ? codeMatch[1].toUpperCase() : 'DOC',
+        department: mat.department || mat.lecturer?.lecturerProfile?.department || 'General Department',
+        programme: mat.programme || 'All Programmes',
+        level: mat.level || 'All Levels',
+        academicYear: '2026/2027',
+        institution: mat.lecturer?.institution || 'University',
+        lecturerName: `${lecturerTitle} ${lecturerNameStr}`,
+        materials: [{ id: mat.id, title: mat.title, materialType: mat.materialType, fileName: mat.fileName }],
+        availableMaterialCount: 1,
+        materialCount: 1,
+        isStandalone: true,
+      });
+    });
+
+    // 3. Filter by Search Query if present
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      return resultList.filter(
+        (c) =>
+          c.title?.toLowerCase().includes(q) ||
+          c.code?.toLowerCase().includes(q) ||
+          c.department?.toLowerCase().includes(q) ||
+          c.programme?.toLowerCase().includes(q) ||
+          c.lecturerName?.toLowerCase().includes(q)
+      );
+    }
+
+    return resultList;
+  }
+
+  async getInstitutionalMaterials(courseId: string, userId?: string) {
+    if (courseId.startsWith('standalone-')) {
+      const matId = courseId.replace('standalone-', '');
+      const mat = await this.prisma.academicMaterial.findUnique({
+        where: { id: matId },
+        include: {
+          lecturer: { select: { name: true, lecturerProfile: true } },
+          documentContent: { select: { wordCount: true } },
+          syllabi: { select: { id: true, title: true, academicYear: true } },
+        },
+      });
+
+      if (!mat || mat.visibility !== 'AVAILABLE' || mat.processingStatus !== 'READY') {
+        throw new Error('Institutional material not found or not available');
+      }
+
+      const codeMatch = mat.title.match(/([A-Z]{3,4}\s*\d{3,4})/i) || mat.fileName.match(/([A-Z]{3,4}\s*\d{3,4})/i);
+      const lecturerTitle = mat.lecturer?.lecturerProfile?.title || 'Dr.';
+      const lecturerNameStr = mat.lecturer?.name && mat.lecturer.name !== 'undefined undefined' ? mat.lecturer.name : 'Lecturer';
+
+      return {
+        course: {
+          id: courseId,
+          title: mat.title,
+          code: codeMatch ? codeMatch[1].toUpperCase() : 'INFT 458',
+          institution: mat.lecturer?.institution || 'University',
+          department: mat.department || 'Computer Science & IT',
+          programme: mat.programme || 'Computer Science',
+          level: mat.level || 'Undergraduate',
+          semester: 'FIRST',
+          academicYear: '2026/2027',
+          lecturerName: `${lecturerTitle} ${lecturerNameStr}`,
+        },
+        materials: [
+          {
+            id: mat.id,
+            title: mat.title,
+            description: mat.description,
+            materialType: mat.materialType,
+            fileName: mat.fileName,
+            fileSize: mat.fileSize,
+            createdAt: mat.createdAt,
+            wordCount: mat.documentContent?.wordCount || 0,
+            isSyllabusOrOutline: mat.materialType === 'COURSE_SYLLABUS' || mat.materialType === 'COURSE_OUTLINE',
+          },
+        ],
+      };
+    }
+
+    const course = await this.prisma.academicCourse.findUnique({
+      where: { id: courseId },
+      include: { lecturer: { select: { name: true, lecturerProfile: true } } },
+    });
+
+    if (!course) {
+      throw new Error('Institutional course not found');
+    }
+
+    const materials = await this.prisma.academicMaterial.findMany({
+      where: {
+        courseId,
+        visibility: 'AVAILABLE',
+        processingStatus: 'READY',
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        documentContent: { select: { wordCount: true } },
+        syllabi: { select: { id: true, title: true, academicYear: true } },
+      },
+    });
+
+    const lecturerTitle = course.lecturer?.lecturerProfile?.title || 'Dr.';
+    const lecturerNameStr = course.lecturer?.name && course.lecturer.name !== 'undefined undefined' ? course.lecturer.name : 'Lecturer';
+
+    return {
+      course: {
+        id: course.id,
+        title: course.title,
+        code: course.code,
+        institution: course.institution,
+        department: course.department,
+        programme: course.programme,
+        level: course.level,
+        semester: course.semester,
+        academicYear: course.academicYear,
+        lecturerName: `${lecturerTitle} ${lecturerNameStr}`,
+      },
+      materials: materials.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        materialType: m.materialType,
+        fileName: m.fileName,
+        fileSize: m.fileSize,
+        fileUrl: m.fileUrl,
+        downloadUrl: `/courses/materials/${m.id}/download`,
+        createdAt: m.createdAt,
+        wordCount: m.documentContent?.wordCount || 0,
+        isSyllabusOrOutline: m.materialType === 'COURSE_SYLLABUS' || m.materialType === 'COURSE_OUTLINE',
+      })),
+    };
+  }
+
+  async downloadMaterialFile(materialId: string, res: any) {
+    const material = await this.prisma.academicMaterial.findUnique({
+      where: { id: materialId },
+      include: { documentContent: true },
+    });
+
+    if (!material) {
+      throw new Error('Academic material not found');
+    }
+
+    if (material.fileUrl) {
+      let relPath = material.fileUrl.startsWith('/') ? material.fileUrl.substring(1) : material.fileUrl;
+      const absolutePath = path.join(process.cwd(), relPath);
+
+      if (fs.existsSync(absolutePath)) {
+        const fileName = material.fileName || path.basename(absolutePath);
+        return res.download(absolutePath, fileName);
+      }
+    }
+
+    if (material.documentContent && material.documentContent.extractedText) {
+      const safeTitle = (material.title || 'Academic_Material').replace(/[^a-z0-9]/gi, '_');
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.txt"`);
+      return res.send(material.documentContent.extractedText);
+    }
+
+    throw new Error(`File storage missing for ${material.title}`);
+  }
+
+  async getMaterialPreview(materialId: string, userId?: string) {
+    const material = await this.prisma.academicMaterial.findUnique({
+      where: { id: materialId },
+      include: {
+        course: { select: { title: true, code: true, academicYear: true } },
+        lecturer: { select: { name: true, lecturerProfile: true } },
+        documentContent: { select: { cleanedText: true, wordCount: true } },
+        syllabi: {
+          include: {
+            objectives: true,
+            outcomes: true,
+            topics: { orderBy: { orderIndex: 'asc' } },
+            readings: true,
+          },
+        },
+      },
+    });
+
+    if (!material) throw new Error('Material not found');
+    if (material.visibility !== 'AVAILABLE' || material.processingStatus !== 'READY') {
+      throw new Error('You do not have permission to view or select this material.');
+    }
+
+    const syllabusData = material.syllabi && material.syllabi.length > 0 ? material.syllabi[0] : null;
+
+    return {
+      id: material.id,
+      title: material.title,
+      materialType: material.materialType,
+      fileName: material.fileName,
+      fileSize: material.fileSize,
+      createdAt: material.createdAt,
+      academicYear: material.course?.academicYear || '2026/2027',
+      lecturerName: `${material.lecturer?.lecturerProfile?.title || 'Dr.'} ${material.lecturer?.name || 'Lecturer'}`,
+      courseTitle: material.course ? `${material.course.code}: ${material.course.title}` : 'General Material',
+      wordCount: material.documentContent?.wordCount || 0,
+      previewSnippet: material.documentContent?.cleanedText ? material.documentContent.cleanedText.substring(0, 2000) : '',
+      syllabusStructure: syllabusData
+        ? {
+            objectives: syllabusData.objectives.map((o) => o.text),
+            outcomes: syllabusData.outcomes.map((o) => o.text),
+            topics: syllabusData.topics.map((t) => ({ title: t.title, weekNumber: t.weekNumber, description: t.description })),
+            readings: syllabusData.readings.map((r) => r.citation),
+          }
+        : null,
+    };
+  }
+
+  async validateReferences(userId: string, materialIds: string[]) {
+    if (!materialIds || materialIds.length === 0) return [];
+
+    const materials = await this.prisma.academicMaterial.findMany({
+      where: {
+        id: { in: materialIds },
+      },
+    });
+
+    if (materials.length !== materialIds.length) {
+      throw new Error('One or more selected academic reference materials do not exist.');
+    }
+
+    for (const m of materials) {
+      if (m.processingStatus !== 'READY') {
+        throw new Error(`Material '${m.title}' is still processing or failed processing and cannot be used as a reference.`);
+      }
+      if (m.visibility !== 'AVAILABLE') {
+        throw new Error(`Material '${m.title}' is private and unavailable for student course generation.`);
+      }
+    }
+
+    return materials;
+  }
+
+  async retrieveGroundingChunks(materialIds: string[], topic: string) {
+    if (!materialIds || materialIds.length === 0) return [];
+
+    const chunks = await this.prisma.academicChunk.findMany({
+      where: {
+        materialId: { in: materialIds },
+      },
+      include: {
+        material: { select: { id: true, title: true, materialType: true } },
+      },
+      take: 20,
+    });
+
+    const topicKeywords = topic.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+
+    const scoredChunks = chunks.map((chunk) => {
+      const text = chunk.content.toLowerCase();
+      let score = 0;
+      topicKeywords.forEach((kw) => {
+        if (text.includes(kw)) score += 1;
+      });
+      if (chunk.material.materialType === 'COURSE_SYLLABUS' || chunk.material.materialType === 'COURSE_OUTLINE') {
+        score += 2;
+      }
+      return { chunk, score };
+    });
+
+    scoredChunks.sort((a, b) => b.score - a.score);
+    return scoredChunks.map((s) => s.chunk);
+  }
+
+  async getCourseReferences(courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        academicCourse: { select: { title: true, code: true, level: true, semester: true } },
+        references: {
+          include: {
+            academicMaterial: {
+              select: {
+                title: true,
+                materialType: true,
+                fileName: true,
+                lecturer: { select: { name: true, lecturerProfile: true } },
+              },
+            },
+          },
+        },
+        generationRecord: true,
+      },
+    });
+
+    if (!course) throw new Error('Course not found');
+
+    return {
+      groundingMode: course.groundingMode,
+      academicCourse: course.academicCourse,
+      references: course.references,
+      generationRecord: course.generationRecord,
+    };
+  }
+
+  async fetchOpenAlexPapers(topic: string) {
+    const apiKey = process.env.OPENALEX_API_KEY || '7aRpYl0NULfjYvalbsyrd5';
+    const cleanTopic = topic.trim().replace(/[^a-zA-Z0-9\s]/g, '');
+    const url = `https://api.openalex.org/works?search=${encodeURIComponent(cleanTopic)}&per-page=5&sort=cited_by_count:desc&api_key=${apiKey}`;
+
+    this.logger.log(`Querying OpenAlex scholarly database for: "${cleanTopic}"...`);
 
     try {
-      // Ensure user exists in the database to prevent foreign key errors (e.g. if database was wiped)
+      const response = await fetch(url);
+      if (!response.ok) {
+        this.logger.warn(`OpenAlex API query returned status ${response.status}`);
+        return [];
+      }
+      const data = await response.json();
+      const results = (data.results || []).map((work: any) => ({
+        id: work.id,
+        title: work.display_name,
+        year: work.publication_year,
+        citations: work.cited_by_count,
+        doi: work.doi || `https://openalex.org/${work.id}`,
+        authors: (work.authorships || []).slice(0, 3).map((a: any) => a.author?.display_name).filter(Boolean).join(', '),
+        concepts: (work.concepts || []).slice(0, 4).map((c: any) => c.display_name).filter(Boolean).join(', '),
+        type: work.type || 'journal-article',
+      }));
+
+      this.logger.log(`OpenAlex returned ${results.length} peer-reviewed scholarly papers for "${cleanTopic}"`);
+      return results;
+    } catch (err: any) {
+      this.logger.warn(`Failed to fetch OpenAlex scholarly papers: ${err.message}`);
+      return [];
+    }
+  }
+
+  async generateCourse(dto: {
+    userId: string;
+    topic: string;
+    difficulty: string;
+    chapters: number;
+    includeYoutube: boolean;
+    groundingMode?: string;
+    visibility?: string;
+    department?: string;
+    academicCourseId?: string;
+    academicMaterialIds?: string[];
+    invitedEmails?: string[];
+    recommendationUserId?: string;
+    recommendationSourceId?: string;
+  }): Promise<{ success: boolean; courseId?: string; course?: any; message?: string }> {
+    this.logger.log(`Starting AI course generation for topic: "${dto.topic}" (groundingMode: ${dto.groundingMode || 'AI_ONLY'})`);
+
+    try {
+      // Server-Side Reference Access Validation
+      let validatedMaterials = [];
+      let retrievedChunks = [];
+      const isInstitutionalMode = (dto.groundingMode === 'INSTITUTIONAL' || dto.groundingMode === 'HYBRID') && dto.academicMaterialIds && dto.academicMaterialIds.length > 0;
+
+      if (isInstitutionalMode) {
+        this.logger.log(`Validating ${dto.academicMaterialIds.length} reference materials for user ${dto.userId}...`);
+        validatedMaterials = await this.validateReferences(dto.userId, dto.academicMaterialIds);
+        retrievedChunks = await this.retrieveGroundingChunks(dto.academicMaterialIds, dto.topic);
+      }
+
+      // External OpenAlex Academic Database Query
+      let openAlexPapers: any[] = [];
+      const isExternalMode = dto.groundingMode === 'EXTERNAL' || dto.groundingMode === 'HYBRID' || dto.groundingMode === 'EXTERNAL_ACADEMIC';
+      if (isExternalMode) {
+        openAlexPapers = await this.fetchOpenAlexPapers(dto.topic);
+      }
+
+      // Ensure user exists in DB
       try {
         const userExists = await this.prisma.user.findUnique({ where: { id: dto.userId } });
         if (!userExists) {
-          this.logger.log(`User ${dto.userId} not found in database. Auto-creating user record.`);
           await this.prisma.user.create({
             data: {
               id: dto.userId,
               email: `${dto.userId}@placeholder.com`,
-              name: dto.userId === 'system-bot' ? 'Daily Recommendation' : 'Student User'
-            }
+              name: dto.userId === 'system-bot' ? 'Daily Recommendation' : 'Student User',
+            },
           });
         }
-      } catch (e) {
-        this.logger.warn(`Could not verify or auto-create user ${dto.userId}: ${e.message}`);
-      }
+      } catch (e) {}
 
-      // 0. Fetch per-topic cognitive state, fallback to global
+      // Fetch cognitiveState
       let cognitiveState = 'BEGINNER';
       try {
         const normalizedTopic = dto.topic.toLowerCase().replace(/[^a-z0-9]/g, '');
         const topicState = await this.prisma.topicState.findUnique({
-          where: { userId_topic: { userId: dto.userId, topic: normalizedTopic } }
+          where: { userId_topic: { userId: dto.userId, topic: normalizedTopic } },
         });
         if (topicState?.cognitiveState) {
           cognitiveState = topicState.cognitiveState;
@@ -535,11 +1001,8 @@ Return ONLY valid, well-formed SVG code starting with <svg> and ending with </sv
           const userRecord = await this.prisma.user.findUnique({ where: { id: dto.userId } });
           if (userRecord?.cognitiveState) cognitiveState = userRecord.cognitiveState;
         }
-      } catch (e) {
-        this.logger.warn(`Could not fetch cognitiveState for user ${dto.userId}, defaulting to BEGINNER`);
-      }
+      } catch (e) {}
 
-      // Also fetch global state for the difficulty weight mapping
       let globalState = cognitiveState;
       try {
         const userRecord = await this.prisma.user.findUnique({ where: { id: dto.userId } });
@@ -547,77 +1010,135 @@ Return ONLY valid, well-formed SVG code starting with <svg> and ending with </sv
       } catch (_) {}
 
       const adaptiveNote = cognitiveState === 'ADVANCED'
-        ? 'The learner is ADVANCED. Go deep — include edge cases, internals, advanced patterns, and assume strong prior knowledge. Skip basic definitions.'
+        ? 'The learner is ADVANCED. Go deep — include edge cases, internals, advanced patterns.'
         : cognitiveState === 'INTERMEDIATE'
-        ? 'The learner is INTERMEDIATE. Balance theory and practice. Include worked examples, mention common pitfalls, and assume basic familiarity with the domain.'
-        : 'The learner is a BEGINNER. Use simple language, build concepts from the ground up, avoid jargon without explanation, and include plenty of analogies.';
+        ? 'The learner is INTERMEDIATE. Balance theory and practice.'
+        : 'The learner is a BEGINNER. Use simple language, build concepts from the ground up.';
 
-      this.logger.log(`Adaptive engine: user cognitiveState=${cognitiveState} → applying adaptive prompt adjustments`);
+      // Format institutional grounding context if available
+      let institutionalPromptContext = '';
+      if (isInstitutionalMode && retrievedChunks.length > 0) {
+        const formattedChunksText = retrievedChunks.map((c, i) =>
+          `[CHUNK ${i + 1}] Material: "${c.material.title}" (${c.material.materialType})\nSection: ${c.sectionTitle || 'General'}\nContent:\n${c.content}`
+        ).join('\n\n---\n\n');
+
+        institutionalPromptContext = `
+ACADEMIC GROUNDING INSTRUCTION:
+Use the supplied lecturer-approved institutional academic materials as the primary curriculum reference.
+Follow these rules strictly:
+1. Align the generated course structure, chapter outline, and core concepts with the learning objectives and weekly topics from the supplied materials.
+2. Do not invent syllabus requirements that are not present in the supplied material.
+3. If the supplied materials do not contain enough information for a requested sub-topic, explain it clearly without falsely claiming it came from the syllabus.
+4. Adapt the requested chapter count (${dto.chapters}) to cover the core topics in the institutional reference materials.
+
+SUPPLIED INSTITUTIONAL REFERENCE MATERIALS (${retrievedChunks.length} chunks):
+${formattedChunksText.substring(0, 12000)}
+`;
+      }
+
+      // Format OpenAlex External Literature Context
+      let openAlexPromptContext = '';
+      if (openAlexPapers.length > 0) {
+        openAlexPromptContext = `
+EXTERNAL SCHOLARLY LITERATURE GROUNDING (OPENALEX DATABASE):
+Ground concepts, theories, and citations using the following top peer-reviewed academic publications from the OpenAlex research repository:
+${openAlexPapers.map((paper, idx) => 
+  `[Paper ${idx + 1}] "${paper.title}" (${paper.year})\nAuthors: ${paper.authors || 'Researchers'} | Citations: ${paper.citations} | DOI: ${paper.doi}\nKey Concepts: ${paper.concepts}`
+).join('\n\n')}
+`;
+      }
 
       // 1. Generate Syllabus Outline & Cover Theme
       const outlinePrompt = `Act as an expert curriculum designer. The user wants to learn "${dto.topic}" at a "${dto.difficulty}" level.
     ADAPTIVE ENGINE NOTE: ${adaptiveNote}
+    ${institutionalPromptContext}
+    ${openAlexPromptContext}
     Create a syllabus with exactly ${dto.chapters} chapters that is appropriate for a ${cognitiveState} learner.
-    Also, act as a professional graphic designer and design a premium card cover theme matching this course.
+    CRITICAL: Output ONLY a valid raw JSON object starting with '{' and ending with '}'. Do NOT include markdown code blocks, bold titles (such as **Curriculum Outline**), commentary, or notes outside the JSON structure.
     Return strictly JSON in this format: 
     { 
       "courseTitle": "String", 
       "coverTheme": {
-        "gradStart": "hsl(h, s%, l%)", // dark background gradient start (lightness 12-20%)
-        "gradEnd": "hsl(h, s%, l%)",   // dark background gradient end (lightness 5-10%)
-        "accent": "#HEX",              // vibrant accent color
-        "accent2": "#HEX",             // matching secondary accent color
-        "tag": "SHORT TAG",            // 1-3 words topic tag in uppercase
-        "icon": "SVG markup"           // Beautiful, detailed raw SVG elements (like path, rect, circle, line, ellipse) that draw the icon inside a 150x120 canvas (with X from 10 to 140, and Y from 10 to 110). Do NOT wrap with parent <svg> or <g> tags.
+        "gradStart": "hsl(h, s%, l%)",
+        "gradEnd": "hsl(h, s%, l%)",
+        "accent": "#HEX",
+        "accent2": "#HEX",
+        "tag": "SHORT TAG",
+        "icon": "SVG markup"
       },
-      "chapters": [{ "title": "String", "searchQuery": "Detailed search query for web facts", "youtubeSearchQuery": "Highly specific query to find a matching educational video for this SPECIFIC chapter title" }] 
+      "chapters": [{ "title": "String", "searchQuery": "Detailed search query for web facts", "youtubeSearchQuery": "Highly specific query for video" }] 
     }`;
     
       const outlineCompletion = await this.callGroqWithRetry({
         messages: [{ role: 'user', content: outlinePrompt }],
-        model: 'llama-3.3-70b-versatile',
+        model: 'qwen/qwen3.6-27b',
         response_format: { type: 'json_object' }
       });
       const outlineText = outlineCompletion.choices[0]?.message?.content || '{}';
-      const outlineData = JSON.parse(outlineText);
+      
+      let outlineData: any;
+      try {
+        outlineData = JSON.parse(this.cleanJsonString(outlineText));
+      } catch (parseErr: any) {
+        this.logger.warn(`Direct JSON parse failed for syllabus outline (${parseErr.message}). Trying regex extraction fallback...`);
+        const jsonMatch = outlineText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          outlineData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error(`AI generated an unparseable syllabus outline response.`);
+        }
+      }
 
-      // 2. Generate Course Cover (instantaneous sync call using the coverTheme from LLM)
+      // 2. Generate Cover
       const coverImage = await this.generateCourseCover(outlineData.courseTitle || dto.topic, outlineData.coverTheme);
       
-      // 2. Parallel generation for each chapter
+      // 3. Ultra-Fast Parallel chapter generation (Combined Content & Learning Aids in Single Prompt)
       const chapterPromises = outlineData.chapters.map(async (chapter: any, index: number) => {
-        this.logger.log(`Starting parallel processing for chapter: ${chapter.title}`);
-        
-        // A. Tavily Search & Scrape
         let scrapedContext = "";
         try {
-          const tavilyResp = await axios.post('https://api.tavily.com/search', {
-            api_key: process.env.TAVILY_API_KEY,
-            query: `${dto.topic} ${chapter.searchQuery}`,
-            search_depth: "basic",
-            include_answer: true,
-            include_raw_content: true,
-            max_results: 3
+          if (process.env.TAVILY_API_KEY) {
+            const tavilyResp = await axios.post('https://api.tavily.com/search', {
+              api_key: process.env.TAVILY_API_KEY,
+              query: `${dto.topic} ${chapter.searchQuery || chapter.title}`,
+              search_depth: "basic",
+              include_answer: true,
+              max_results: 2
+            }, { timeout: 1000 });
+            scrapedContext = tavilyResp.data.results?.map((r: any) => r.content).join("\n\n") || tavilyResp.data.answer || "";
+          }
+        } catch (err: any) {}
+        
+        const combinedPrompt = `You are a world-class instructor writing a course chapter. Topic: ${dto.topic}. Chapter Title: ${chapter.title}. Target Audience: ${dto.difficulty}.
+        ADAPTIVE ENGINE NOTE: ${adaptiveNote}
+        ${institutionalPromptContext ? `INSTITUTIONAL GROUNDING CONTEXT:\n${institutionalPromptContext.substring(0, 3000)}\n` : ''}
+        ${openAlexPromptContext ? `EXTERNAL SCHOLARLY LITERATURE CONTEXT (OPENALEX):\n${openAlexPromptContext.substring(0, 3000)}\n` : ''}
+        ${scrapedContext ? `WEB REFERENCE CONTEXT:\n${scrapedContext.substring(0, 2500)}\n` : ''}
+
+        Return strictly JSON with this schema:
+        {
+          "content": "Detailed markdown explanation of ${chapter.title} with clear headings, bullet points, and code examples",
+          "quizzes": [{ "question": "Question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }],
+          "flashcards": [{ "front": "Concept", "back": "Definition" }],
+          "summary": "Concise summary text",
+          "tasks": [{ "title": "Practical Exercise", "description": "What to solve", "answer": "Solution" }]
+        }`;
+        
+        let chapterResult: any = {};
+        try {
+          const completion = await this.callGroqWithRetry({
+            messages: [{ role: 'user', content: combinedPrompt }],
+            model: 'groq/compound-mini',
+            max_tokens: 3500,
+            response_format: { type: 'json_object' }
           });
-          scrapedContext = tavilyResp.data.results.map((r: any) => r.raw_content || r.content).join("\n\n") || tavilyResp.data.answer || "";
-        } catch (err: any) {
-          this.logger.error("Tavily search failed", err.response?.data || err.message);
+          chapterResult = JSON.parse(this.cleanJsonString(completion.choices[0]?.message?.content || '{}'));
+        } catch (e) {
+          chapterResult = {
+            content: `## ${chapter.title}\n\nComprehensive exploration of ${chapter.title} for ${dto.topic}.`,
+            summary: `Summary of ${chapter.title}`
+          };
         }
         
-        // B. Detailed Groq Synthesis
-        const detailPrompt = `You are a world-class instructor writing a course chapter. Topic: ${dto.topic}. Chapter Title: ${chapter.title}. Target Audience: ${dto.difficulty}.
-        ADAPTIVE ENGINE NOTE: ${adaptiveNote}
-        Use the following scraped web content to enrich your explanation with facts and deep details:\n\n${scrapedContext.substring(0, 15000)}\n\n
-        Write a highly detailed, engaging, and comprehensive explanation for this chapter in Markdown format tailored to a ${cognitiveState} learner. Use clear headings, bullet points, and code snippets or examples if applicable. Ensure code snippets are correctly formatted with language identifiers (e.g. \`\`\`javascript).`;
-        
-        const detailCompletion = await this.callGroqWithRetry({
-          messages: [{ role: 'user', content: detailPrompt }],
-          model: 'llama-3.1-8b-instant',
-          max_tokens: 4096,
-        });
-        const content = detailCompletion.choices[0]?.message?.content || '';
-        
-        // C. YouTube Integration
         let youtubeUrl = null;
         if (dto.includeYoutube && process.env.YOUTUBE_API_KEY) {
           try {
@@ -628,90 +1149,38 @@ Return ONLY valid, well-formed SVG code starting with <svg> and ending with </sv
                 part: "snippet",
                 type: "video",
                 maxResults: 1
-              }
+              },
+              timeout: 1000
             });
             if (ytResp.data.items && ytResp.data.items.length > 0) {
               youtubeUrl = `https://www.youtube.com/embed/${ytResp.data.items[0].id.videoId}`;
             }
-          } catch (err: any) {
-            this.logger.error("YouTube search failed", err.response?.data || err.message);
-          }
-        }
-        
-        // D. Learning Aids Generation (Quizzes, Flashcards, Summary, Tasks)
-        const quizQuestionCount = cognitiveState === 'ADVANCED' ? 12 : cognitiveState === 'INTERMEDIATE' ? 8 : 5;
-        let learningAidsData = [];
-        try {
-          const learningAidsPrompt = `Based ONLY on the following chapter content, generate exactly:
-- ${quizQuestionCount} multiple choice quiz questions (calibrated for a ${cognitiveState} learner: ${cognitiveState === 'ADVANCED' ? 'make questions challenging, test edge cases and nuanced understanding' : cognitiveState === 'INTERMEDIATE' ? 'mix conceptual and applied questions' : 'keep questions clear and foundational'})
-- 10 flashcards
-- 1 comprehensive, in-depth structured summary (covering key definitions, core concepts, and key takeaways in 3-4 detailed paragraphs)
-- exactly 5 practical tasks (each must have a clear description and a beautifully formatted "answer" containing step-by-step solution steps, best practice suggestions, and clean syntax-highlighted code blocks where applicable in Markdown)
-
-Content:
-${content.substring(0, 10000)}
-
-Output STRICTLY valid JSON exactly matching this format:
-{
-  "quizzes": [
-    { "question": "Question text?", "options": ["A", "B", "C", "D"], "answerIndex": 0 }
-  ],
-  "flashcards": [
-    { "front": "Concept name", "back": "Concept definition" }
-  ],
-  "summary": "Detailed comprehensive summary covering the core concepts, key terms, and critical takeaways in depth.",
-  "tasks": [
-    { "title": "Task Name", "description": "What to do", "answer": "Detailed step-by-step solution, explanation, and code blocks formatted beautifully in Markdown" }
-  ]
-}`;
-          const aidsCompletion = await this.callGroqWithRetry({
-            messages: [{ role: 'user', content: learningAidsPrompt }],
-            model: 'llama-3.1-8b-instant',
-            response_format: { type: 'json_object' },
-            max_tokens: 4096,
-          });
-          const aidsText = aidsCompletion.choices[0]?.message?.content || '{}';
-          const aidsJson = JSON.parse(aidsText);
-          
-          // Robust JSON mapping
-          const quizzes = aidsJson.quizzes || aidsJson.quiz || [];
-          if (Array.isArray(quizzes) && quizzes.length > 0) {
-            learningAidsData.push({ type: 'QUIZ', payload: { quizzes } });
-          }
-
-          const flashcards = aidsJson.flashcards || aidsJson.flashcard || [];
-          if (Array.isArray(flashcards) && flashcards.length > 0) {
-            learningAidsData.push({ type: 'FLASHCARD', payload: { flashcards } });
-          }
-
-          const summary = typeof aidsJson.summary === 'string' ? aidsJson.summary : (aidsJson.summary?.text || aidsJson.summary?.content || '');
-          if (summary) {
-            learningAidsData.push({ type: 'SUMMARY', payload: { summary } });
-          }
-
-          const tasks = aidsJson.tasks || aidsJson.task || [];
-          if (Array.isArray(tasks) && tasks.length > 0) {
-            learningAidsData.push({ type: 'TASK', payload: { tasks } });
-          }
-        } catch (err: any) {
-          this.logger.error("Learning Aids generation failed", err.message);
+          } catch (err: any) {}
         }
 
-        // Determine per-module difficulty based on topic state
+        const learningAidsData: any[] = [];
+        const quizzes = chapterResult.quizzes || chapterResult.quiz || [];
+        if (Array.isArray(quizzes) && quizzes.length > 0) {
+          learningAidsData.push({ type: 'QUIZ', payload: { quizzes } });
+        }
+        const flashcards = chapterResult.flashcards || chapterResult.flashcard || [];
+        if (Array.isArray(flashcards) && flashcards.length > 0) {
+          learningAidsData.push({ type: 'FLASHCARD', payload: { flashcards } });
+        }
+        const summary = typeof chapterResult.summary === 'string' ? chapterResult.summary : (chapterResult.summary?.text || '');
+        if (summary) {
+          learningAidsData.push({ type: 'SUMMARY', payload: { summary } });
+        }
+        const tasks = chapterResult.tasks || chapterResult.task || [];
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          learningAidsData.push({ type: 'TASK', payload: { tasks } });
+        }
+
         let moduleDifficultyWeight = globalState === 'ADVANCED' ? 3 : globalState === 'INTERMEDIATE' ? 2 : 1;
-        try {
-          const normalizedTopic = dto.topic.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const topicState = await this.prisma.topicState.findUnique({
-            where: { userId_topic: { userId: dto.userId, topic: normalizedTopic } }
-          });
-          if (topicState) {
-            moduleDifficultyWeight = topicState.cognitiveState === 'ADVANCED' ? 3 : topicState.cognitiveState === 'INTERMEDIATE' ? 2 : 1;
-          }
-        } catch (_) {}
 
         return {
           title: chapter.title,
-          content: content,
+          content: chapterResult.content || `## ${chapter.title}\n\nDetailed explanation of ${chapter.title}.`,
           youtubeUrl: youtubeUrl,
           orderIndex: index,
           difficultyWeight: moduleDifficultyWeight,
@@ -721,18 +1190,32 @@ Output STRICTLY valid JSON exactly matching this format:
 
       const modulesData = await Promise.all(chapterPromises);
       
-      // 3. Save to DB
-      let normalizedDifficulty = dto.difficulty.toUpperCase();
+      // 4. Save Course to DB
+      let normalizedDifficulty = dto.difficulty ? dto.difficulty.toUpperCase() : 'BEGINNER';
       if (!['BEGINNER', 'INTERMEDIATE', 'ADVANCED'].includes(normalizedDifficulty)) {
          normalizedDifficulty = 'BEGINNER';
+      }
+
+      let validAcademicCourseId: string | null = null;
+      if (dto.academicCourseId && !dto.academicCourseId.startsWith('standalone-')) {
+        const existingCourse = await this.prisma.academicCourse.findUnique({
+          where: { id: dto.academicCourseId },
+        });
+        if (existingCourse) {
+          validAcademicCourseId = existingCourse.id;
+        }
       }
 
       const course = await this.prisma.course.create({
         data: {
           userId: dto.userId,
-          title: outlineData.courseTitle,
+          title: outlineData.courseTitle || dto.topic,
           targetDifficulty: normalizedDifficulty,
           coverImage: coverImage,
+          groundingMode: dto.groundingMode || (isInstitutionalMode ? 'INSTITUTIONAL' : isExternalMode ? 'EXTERNAL' : 'AI_ONLY'),
+          visibility: (dto.visibility || 'PUBLIC').toUpperCase(),
+          department: dto.department || null,
+          academicCourseId: validAcademicCourseId,
           recommendationUserId: dto.recommendationUserId || null,
           recommendationSourceId: dto.recommendationSourceId || null,
           modules: {
@@ -744,10 +1227,79 @@ Output STRICTLY valid JSON exactly matching this format:
         }
       });
 
-      // Automatically enroll the creator of the course
+      // Save persistent institutional references
+      if (validatedMaterials.length > 0) {
+        await this.prisma.generatedCourseReference.createMany({
+          data: validatedMaterials.map((m) => ({
+            courseId: course.id,
+            academicMaterialId: m.id,
+            sourceType: 'INSTITUTIONAL',
+            title: m.title,
+            materialType: m.materialType,
+            versionSnapshot: 1,
+          })),
+        });
+      }
+
+      // Save persistent OpenAlex external literature references
+      if (openAlexPapers.length > 0) {
+        await this.prisma.generatedCourseReference.createMany({
+          data: openAlexPapers.map((p) => ({
+            courseId: course.id,
+            externalSourceId: p.doi || p.id,
+            sourceType: 'OPENALEX',
+            title: `${p.title} (${p.year}) - ${p.authors || 'OpenAlex Paper'} [${p.citations} Citations]`,
+            materialType: 'PEER_REVIEWED_PAPER',
+            versionSnapshot: 1,
+          })),
+        });
+      }
+
+      // Process invited student email addresses for private or personalized courses
+      if (dto.invitedEmails && Array.isArray(dto.invitedEmails) && dto.invitedEmails.length > 0) {
+        for (const rawEmail of dto.invitedEmails) {
+          const cleanEmail = rawEmail.trim().toLowerCase();
+          if (cleanEmail && cleanEmail.includes('@')) {
+            const studentUser = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
+            await this.prisma.courseEnrollment.upsert({
+              where: { courseId_studentEmail: { courseId: course.id, studentEmail: cleanEmail } },
+              update: { studentId: studentUser ? studentUser.id : undefined, status: 'ENROLLED' },
+              create: {
+                courseId: course.id,
+                studentEmail: cleanEmail,
+                studentId: studentUser ? studentUser.id : null,
+                lecturerId: dto.userId,
+                status: studentUser ? 'ENROLLED' : 'INVITED',
+              },
+            });
+            if (studentUser) {
+              await this.prisma.userCourseProgress.upsert({
+                where: { userId_courseId: { userId: studentUser.id, courseId: course.id } },
+                update: {},
+                create: { userId: studentUser.id, courseId: course.id, isCompleted: false, totalTimeSpentSeconds: 0 },
+              });
+            }
+          }
+        }
+      }
+
+      // Save generation record
+      await this.prisma.courseGenerationRecord.create({
+        data: {
+          courseId: course.id,
+          groundingMode: dto.groundingMode || (isInstitutionalMode ? 'INSTITUTIONAL' : 'AI_ONLY'),
+          modelProvider: 'Groq',
+          modelName: 'groq/compound / groq/compound-mini',
+          retrievedChunkCount: retrievedChunks.length,
+        },
+      });
+
+      // Automatically enroll creator
       if (dto.userId !== 'system-bot') {
-        await this.prisma.userCourseProgress.create({
-          data: {
+        await this.prisma.userCourseProgress.upsert({
+          where: { userId_courseId: { userId: dto.userId, courseId: course.id } },
+          update: {},
+          create: {
             userId: dto.userId,
             courseId: course.id,
             isCompleted: false,
@@ -759,10 +1311,7 @@ Output STRICTLY valid JSON exactly matching this format:
       return { success: true, courseId: course.id, course };
     } catch (error: any) {
       this.logger.error("Failed to generate course", error.stack);
-      if (error.message?.includes('429')) {
-        return { success: false, message: "AI rate limit strictly exhausted! Please check your Groq console." };
-      }
-      return { success: false, message: "Generating the course failed due to an unexpected server issue." };
+      return { success: false, message: error.message || "Generating the course failed due to an unexpected server issue." };
     }
   }
 
@@ -1196,7 +1745,7 @@ Output STRICTLY valid JSON exactly matching this format:
       this.logger.log(`Generating ${needed} new advanced continuation shell recommendations for course: "${course.title}"`);
       
       try {
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
         
         // Define the target difficulty based on the current course
         let targetDifficulty = 'INTERMEDIATE';
@@ -1311,7 +1860,7 @@ Do not include markdown wrappers, explanations, or any text other than the raw J
     const recentTitles = recentCourses.map(c => c.title).join(', ');
     
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
       const historyStr = historyTitles.length > 0 ? historyTitles.join(', ') : 'None';
       const prompt = `Suggest a list of exactly ${count} highly engaging, distinct technical topics for daily featured learning courses (topics could cover computer science, frontend, backend, database, cloud, devops, mobile, or AI).
 The user's active learning history includes courses on these topics/titles: [${historyStr}].
@@ -1477,7 +2026,7 @@ Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volume
 
       const detailCompletion = await this.callGroqWithRetry({
         messages: [{ role: 'user', content: detailPrompt }],
-        model: 'llama-3.1-8b-instant',
+        model: 'groq/compound-mini',
         max_tokens: 4096,
       });
       const content = detailCompletion.choices[0]?.message?.content || '';
@@ -1531,12 +2080,12 @@ Output STRICTLY valid JSON exactly matching this format:
 }`;
         const aidsCompletion = await this.callGroqWithRetry({
           messages: [{ role: 'user', content: learningAidsPrompt }],
-          model: 'llama-3.1-8b-instant',
+          model: 'groq/compound-mini',
           response_format: { type: 'json_object' },
           max_tokens: 4096,
         });
         const aidsText = aidsCompletion.choices[0]?.message?.content || '{}';
-        const aidsJson = JSON.parse(aidsText);
+        const aidsJson = JSON.parse(this.cleanJsonString(aidsText));
 
         const quizzes = aidsJson.quizzes || aidsJson.quiz || [];
         if (Array.isArray(quizzes) && quizzes.length > 0) {

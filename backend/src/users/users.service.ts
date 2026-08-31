@@ -14,6 +14,8 @@ export class UsersService {
           select: { courses: true }
         },
         topicStates: true,
+        studentProfile: true,
+        lecturerProfile: true,
       }
     });
   }

@@ -209,6 +209,13 @@ export default function Profile() {
               <div className="profile-details">
                 <h1>{userData?.name || auth.currentUser?.displayName || 'Student'}</h1>
                 <p>{auth.currentUser?.email}</p>
+                {userData?.studentProfile && (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', fontSize: '0.8rem', color: '#94a3b8' }}>
+                    {userData.institution && <span>🏛️ {userData.institution}</span>}
+                    {userData.studentProfile.programme && <span>🎓 {userData.studentProfile.programme}</span>}
+                    {userData.studentProfile.level && <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>{userData.studentProfile.level}</span>}
+                  </div>
+                )}
               </div>
             </div>
             
