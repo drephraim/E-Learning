@@ -1144,7 +1144,7 @@ export class LecturerService {
       });
     } catch (err: any) {
       this.logger.error('Failed to get validation courses', err.stack);
-      return [];
+      return [{ error: err.message, stack: err.stack }];
     }
   }
 
