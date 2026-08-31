@@ -1154,20 +1154,46 @@ ${openAlexPapers.map((paper, idx) =>
           }
         } catch (err: any) {}
         
-        const combinedPrompt = `You are a world-class instructor writing a course chapter. Topic: ${dto.topic}. Chapter Title: ${chapter.title}. Target Audience: ${dto.difficulty}.
-        ADAPTIVE ENGINE NOTE: ${adaptiveNote}
-        ${institutionalPromptContext ? `INSTITUTIONAL GROUNDING CONTEXT:\n${institutionalPromptContext.substring(0, 3000)}\n` : ''}
-        ${openAlexPromptContext ? `EXTERNAL SCHOLARLY LITERATURE CONTEXT (OPENALEX):\n${openAlexPromptContext.substring(0, 3000)}\n` : ''}
-        ${scrapedContext ? `WEB REFERENCE CONTEXT:\n${scrapedContext.substring(0, 2500)}\n` : ''}
+        const combinedPrompt = `You are an elite academic professor and master curriculum writer crafting a comprehensive textbook chapter.
+Topic: ${dto.topic}.
+Chapter Title: ${chapter.title}.
+Target Difficulty: ${dto.difficulty}.
+Learner Cognitive State: ${cognitiveState}. ${adaptiveNote}
+${institutionalPromptContext ? `\nINSTITUTIONAL SYLLABUS REFERENCE DATA:\n${institutionalPromptContext.substring(0, 3000)}\n` : ''}
+${openAlexPromptContext ? `\nOPENALEX ACADEMIC RESEARCH DATABASE LITERATURE:\n${openAlexPromptContext.substring(0, 3000)}\n` : ''}
+${scrapedContext ? `\nWEB RESEARCH CONTEXT:\n${scrapedContext.substring(0, 2500)}\n` : ''}
 
-        Return strictly JSON with this schema:
-        {
-          "content": "Detailed markdown explanation of ${chapter.title} with clear headings, bullet points, and code examples",
-          "quizzes": [{ "question": "Question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }],
-          "flashcards": [{ "front": "Concept", "back": "Definition" }],
-          "summary": "Concise summary text",
-          "tasks": [{ "title": "Practical Exercise", "description": "What to solve", "answer": "Solution" }]
-        }`;
+ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
+1. APA 7TH EDITION IN-TEXT CITATIONS:
+   - Ground theories, empirical findings, definitions, and framework explanations using in-text APA 7th edition citations (e.g., (Author & Coauthor, Year) or (Author et al., Year)).
+   - Specifically cite literature from the OpenAlex research database context or institutional grounding materials provided above.
+
+2. VISUAL FORMATTING & PRESENTATION ELEGANCE:
+   - Structure the explanation with crisp Markdown section headers (##, ###).
+   - Use emoji callout blockquotes for key takeaways, terminology, and pitfalls:
+     > 💡 **Core Takeaway**: Essential concept summary.
+     > 📌 **Key Terminology**: Precise definitions.
+     > ⚠️ **Common Pitfall**: Typical student misconceptions and how to avoid them.
+   - Format all code examples with explicit syntax highlighting (e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql).
+   - Use Markdown tables or bulleted lists for comparative concepts.
+
+3. MANDATORY END-OF-CHAPTER REFERENCE & DOCUMENTATION SECTIONS:
+   - At the end of the chapter content, include a section titled:
+     ### References
+     List all cited sources in full formal APA 7th Edition format:
+     Author, A. A., & Author, B. B. (Year). *Title of publication*. Journal or Publisher Name. https://doi.org/10.xxxx/xxxx (or URL link).
+   - Immediately following the References section, include a section titled:
+     ### Further Reading & Official Documentation
+     Provide 2-4 curated recommendations (official documentation links, benchmark research papers, or classic textbooks) for students who want to deepen their mastery.
+
+Return strictly JSON matching this schema:
+{
+  "content": "Full, beautifully formatted markdown chapter content incorporating in-text APA citations, headings, callout boxes, code snippets, the ### References section, and the ### Further Reading & Official Documentation section.",
+  "quizzes": [{ "question": "Question text?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }],
+  "flashcards": [{ "front": "Concept", "back": "Definition" }],
+  "summary": "Concise summary text of the chapter",
+  "tasks": [{ "title": "Practical Exercise", "description": "Problem prompt", "answer": "Step-by-step solution with explanations and syntax-highlighted code" }]
+}`;
         
         let chapterResult: any = {};
         try {
@@ -2072,10 +2098,26 @@ Return your response ONLY as a JSON string array of titles, e.g. ["Docker Volume
       }
 
       // B. Detailed Groq Synthesis
-      const detailPrompt = `You are a world-class instructor writing a course chapter. Topic: ${course.title}. Chapter Title: ${module.title}. Target Audience: ${difficulty}.
-      ADAPTIVE ENGINE NOTE: ${adaptiveNote}
-      Use the following scraped web content to enrich your explanation with facts and deep details:\n\n${scrapedContext.substring(0, 15000)}\n\n
-      Write a highly detailed, engaging, and comprehensive explanation for this chapter in Markdown format tailored to a ${cognitiveState} learner. Use clear headings, bullet points, and code snippets or examples if applicable. Ensure code snippets are correctly formatted with language identifiers (e.g. \`\`\`javascript).`;
+      const detailPrompt = `You are an elite academic professor and master curriculum writer crafting a comprehensive textbook chapter.
+Topic: ${course.title}.
+Chapter Title: ${module.title}.
+Target Difficulty: ${difficulty}.
+Learner Cognitive State: ${cognitiveState}. ${adaptiveNote}
+Use the following research content to enrich your explanation with facts and deep details:\n\n${scrapedContext.substring(0, 15000)}\n\n
+
+ACADEMIC INTEGRITY, APA CITATIONS & PRESENTATION INSTRUCTIONS:
+1. APA 7TH EDITION IN-TEXT CITATIONS:
+   - Ground theories, empirical findings, definitions, and framework explanations using in-text APA 7th edition citations (e.g., (Author & Coauthor, Year) or (Author et al., Year)).
+2. VISUAL FORMATTING & PRESENTATION ELEGANCE:
+   - Structure the explanation with crisp Markdown section headers (##, ###).
+   - Use emoji callout blockquotes for key takeaways, terminology, and pitfalls:
+     > 💡 **Core Takeaway**: Essential concept summary.
+     > 📌 **Key Terminology**: Precise definitions.
+     > ⚠️ **Common Pitfall**: Typical student misconceptions and how to avoid them.
+   - Format all code examples with explicit syntax highlighting (e.g. \`\`\`python, \`\`\`javascript, \`\`\`sql).
+3. MANDATORY END-OF-CHAPTER REFERENCE & DOCUMENTATION SECTIONS:
+   - Include a '### References' section at the end of the content listing all cited sources in formal APA 7th Edition format.
+   - Include a '### Further Reading & Official Documentation' section listing 2-4 curated documentation links or academic reading materials for deeper understanding.`;
 
       const detailCompletion = await this.callGroqWithRetry({
         messages: [{ role: 'user', content: detailPrompt }],
