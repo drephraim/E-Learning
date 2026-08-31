@@ -25,7 +25,7 @@ export class CoursesService {
     let cleaned = str.trim();
 
     // 1. Strip markdown fences if present
-    cleaned = cleaned.replace(/^```(json)?\n?/gi, '').replace(/\n?```$/gi, '').trim();
+    cleaned = cleaned.replace(/```(?:json|xml)?\n?/gi, '').replace(/```$/gi, '').trim();
 
     // 2. Extract strictly between the first '{' or '[' and the last '}' or ']'
     const firstBrace = cleaned.indexOf('{');
@@ -54,6 +54,9 @@ export class CoursesService {
         cleaned = cleaned.substring(firstIndex, lastIndex + 1);
       }
     }
+
+    // 3. Remove non-printable control characters that break JSON.parse
+    cleaned = cleaned.replace(/[\x00-\x09\x0B-\x1F\x7F]/g, ' ');
 
     return cleaned.trim();
   }
@@ -1101,17 +1104,35 @@ ${openAlexPapers.map((paper, idx) =>
         }
       }
       
-      let outlineData: any;
+      let outlineData: any = null;
       try {
         outlineData = JSON.parse(this.cleanJsonString(outlineText));
       } catch (parseErr: any) {
         this.logger.warn(`Direct JSON parse failed for syllabus outline (${parseErr.message}). Trying regex extraction fallback...`);
         const jsonMatch = outlineText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          outlineData = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error(`AI generated an unparseable syllabus outline response.`);
+          try {
+            outlineData = JSON.parse(jsonMatch[0]);
+          } catch (e2) {}
         }
+      }
+
+      if (!outlineData || !Array.isArray(outlineData.chapters) || outlineData.chapters.length === 0) {
+        this.logger.warn(`Outline parsing produced empty or invalid structure. Creating robust fallback outline...`);
+        const chapterCount = dto.chapters || 4;
+        const generatedChapters = [];
+        for (let i = 1; i <= chapterCount; i++) {
+          generatedChapters.push({
+            title: `Chapter ${i}: ${dto.topic} Core Concepts (Part ${i})`,
+            searchQuery: `${dto.topic} chapter ${i} explanation`,
+            youtubeSearchQuery: `${dto.topic} tutorial ${i}`
+          });
+        }
+        outlineData = {
+          courseTitle: dto.topic,
+          coverTheme: { tag: dto.topic },
+          chapters: generatedChapters
+        };
       }
 
       // 2. Generate Cover
