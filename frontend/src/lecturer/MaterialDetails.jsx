@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { API_BASE_URL } from '../config';
 import ReactMarkdown from 'react-markdown';
+import EnhancedMarkdown from '../components/EnhancedMarkdown';
 import { 
   FileText, 
   ArrowLeft, 
@@ -438,30 +439,7 @@ const MaterialDetails = () => {
             overflowY: 'auto'
           }}>
             {material.documentContent?.cleanedText ? (
-              <ReactMarkdown
-                components={{
-                  h2: ({ node, ...props }) => (
-                    <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#818cf8', marginTop: 18, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }} {...props} />
-                  ),
-                  h3: ({ node, ...props }) => (
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#60a5fa', marginTop: 14, marginBottom: 6 }} {...props} />
-                  ),
-                  p: ({ node, ...props }) => (
-                    <p style={{ margin: '4px 0 8px 0', color: '#cbd5e1', whiteSpace: 'pre-wrap' }} {...props} />
-                  ),
-                  hr: ({ node, ...props }) => (
-                    <hr style={{ border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.1)', margin: '16px 0' }} {...props} />
-                  ),
-                  ul: ({ node, ...props }) => (
-                    <ul style={{ paddingLeft: 20, margin: '4px 0 10px 0' }} {...props} />
-                  ),
-                  li: ({ node, ...props }) => (
-                    <li style={{ marginBottom: 4, color: '#e2e8f0' }} {...props} />
-                  )
-                }}
-              >
-                {material.documentContent.cleanedText}
-              </ReactMarkdown>
+              <EnhancedMarkdown content={material.documentContent.cleanedText} />
             ) : (
               <div style={{ color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', padding: '30px 0' }}>
                 No text extracted. Click "Edit Text" to paste document text or click "Auto Re-Extract" to process document slides.

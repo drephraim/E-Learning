@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import EnhancedMarkdown from './components/EnhancedMarkdown';
 import QuizComponent from './QuizComponent';
 import FlashcardsComponent from './FlashcardsComponent';
 import SummaryComponent from './SummaryComponent';
@@ -783,22 +784,7 @@ export default function CourseView() {
                        color: '#e2e8f0'
                     }}
                   >
-                    <ReactMarkdown
-                      components={{
-                        code({ node, inline, className, children, ...props }) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          const lang = match ? match[1] : '';
-                          const codeString = String(children).replace(/\n$/, '');
-
-                          if (!inline && (lang || codeString.includes('\n'))) {
-                            return <CodeRunner code={codeString} language={lang || 'javascript'} />;
-                          }
-                          return <code className={className} style={{ background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, fontSize: '0.9em', fontFamily: '"Fira Code", Consolas, monospace' }} {...props}>{children}</code>;
-                        }
-                      }}
-                    >
-                      {activeModule.content}
-                    </ReactMarkdown>
+                    <EnhancedMarkdown content={activeModule.content} />
                   </div>
                 </>
               )}
