@@ -59,10 +59,22 @@ export class CoursesService {
   }
 
   private async callGroqWithRetry(params: any, retries = 4, delayMs = 3000): Promise<any> {
+    let currentParams = { ...params };
     for (let i = 0; i < retries; i++) {
       try {
-        return await this.groq.chat.completions.create(params);
+        return await this.groq.chat.completions.create(currentParams);
       } catch (err: any) {
+        const isJsonError =
+          err.status === 400 ||
+          err.code === 'json_validate_failed' ||
+          (err.message && (err.message.includes('json_validate_failed') || err.message.includes('Failed to validate JSON')));
+
+        if (isJsonError && currentParams.response_format) {
+          this.logger.warn(`Groq server-side JSON validation failed. Stripping response_format and retrying... (Attempt ${i + 1}/${retries})`);
+          delete currentParams.response_format;
+          continue;
+        }
+
         if ((err.status === 429 || err.message?.includes('429') || err.message?.includes('Rate limit')) && i < retries - 1) {
           this.logger.warn(`Groq API rate limit encountered. Retrying in ${delayMs}ms... (Attempt ${i + 1}/${retries})`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -1069,12 +1081,25 @@ ${openAlexPapers.map((paper, idx) =>
       "chapters": [{ "title": "String", "searchQuery": "Detailed search query for web facts", "youtubeSearchQuery": "Highly specific query for video" }] 
     }`;
     
-      const outlineCompletion = await this.callGroqWithRetry({
-        messages: [{ role: 'user', content: outlinePrompt }],
-        model: 'qwen/qwen3.6-27b',
-        response_format: { type: 'json_object' }
-      });
-      const outlineText = outlineCompletion.choices[0]?.message?.content || '{}';
+      let outlineText = '';
+      try {
+        const outlineCompletion = await this.callGroqWithRetry({
+          messages: [{ role: 'user', content: outlinePrompt }],
+          model: 'qwen/qwen3.6-27b',
+          response_format: { type: 'json_object' }
+        });
+        outlineText = outlineCompletion.choices[0]?.message?.content || '{}';
+      } catch (outlineErr: any) {
+        this.logger.warn(`Groq outline call failed (${outlineErr.message}). Attempting Gemini 3.6 Flash fallback...`);
+        try {
+          const geminiModel = this.genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+          const geminiRes = await geminiModel.generateContent(outlinePrompt + "\nOutput strictly valid JSON.");
+          outlineText = geminiRes.response.text() || '{}';
+        } catch (gemErr: any) {
+          this.logger.error(`Gemini outline fallback also failed: ${gemErr.message}`);
+          throw outlineErr;
+        }
+      }
       
       let outlineData: any;
       try {
@@ -1128,15 +1153,22 @@ ${openAlexPapers.map((paper, idx) =>
           const completion = await this.callGroqWithRetry({
             messages: [{ role: 'user', content: combinedPrompt }],
             model: 'groq/compound-mini',
-            max_tokens: 3500,
+            max_tokens: 4096,
             response_format: { type: 'json_object' }
           });
           chapterResult = JSON.parse(this.cleanJsonString(completion.choices[0]?.message?.content || '{}'));
-        } catch (e) {
-          chapterResult = {
-            content: `## ${chapter.title}\n\nComprehensive exploration of ${chapter.title} for ${dto.topic}.`,
-            summary: `Summary of ${chapter.title}`
-          };
+        } catch (e: any) {
+          this.logger.warn(`Groq chapter generation failed for ${chapter.title} (${e.message}). Retrying with Gemini fallback...`);
+          try {
+            const geminiModel = this.genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+            const geminiRes = await geminiModel.generateContent(combinedPrompt + "\nOutput strictly valid JSON.");
+            chapterResult = JSON.parse(this.cleanJsonString(geminiRes.response.text() || '{}'));
+          } catch (gemErr) {
+            chapterResult = {
+              content: `## ${chapter.title}\n\nComprehensive exploration of ${chapter.title} for ${dto.topic}.`,
+              summary: `Summary of ${chapter.title}`
+            };
+          }
         }
         
         let youtubeUrl = null;
