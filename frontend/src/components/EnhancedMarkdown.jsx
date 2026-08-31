@@ -11,22 +11,25 @@ export function preprocessMarkdown(content) {
   if (!content) return '';
   let text = String(content);
 
-  // 1. Convert squished double pipes (||) into newlines: "||" -> "|\n|"
-  text = text.replace(/\|\|/g, '|\n|');
+  // 0. Convert literal "\\n" strings to actual newline characters
+  text = text.replace(/\\n/g, '\n');
 
-  // 2. Convert squished table rows "| |" or "|  |" -> "|\n|"
-  text = text.replace(/\|\s*\|/g, '|\n|');
+  // 1. Convert squished double pipes (||) or "| |" into newlines: "||" -> "|\n| "
+  text = text.replace(/\|\s*\|\s*/g, '|\n| ');
 
-  // 3. Fix table headers merged onto one line with separator line:
+  // 2. Fix table headers merged onto one line with separator line:
   // e.g. "| Col 1 | Col 2 | | --- | --- |" -> "\n| Col 1 | Col 2 |\n| --- | --- |\n"
   text = text.replace(/([^\n])\s*(\|(?:[\s-]*:?---+:?[\s-]*\|)+)/g, '$1\n$2');
   text = text.replace(/(\|(?:[\s-]*:?---+:?[\s-]*\|)+)\s*([^\n])/g, '$1\n$2');
 
-  // 4. Ensure table rows starting with pipe have newlines before them if glued to plain text
+  // 3. Ensure table rows starting with pipe have newlines before them if glued to plain text
   text = text.replace(/([^\n])\s*(\|[^\n|]+\|[^\n]*\|)/g, (match, p1, p2) => {
     if (p2.includes('|')) return `${p1}\n${p2}`;
     return match;
   });
+
+  // 4. Ensure headings (##, ###) have clean double newlines before them
+  text = text.replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2');
 
   return text;
 }
