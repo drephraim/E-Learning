@@ -2,6 +2,11 @@
   "version": 2,
   "framework": null,
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "node_modules/.prisma/client/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
