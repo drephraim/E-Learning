@@ -11,6 +11,9 @@
     "axios": "^1.13.6",
     "cors": "^2.8.6",
     "groq-sdk": "^1.1.1",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.1",
+    "pdf-parse": "^2.4.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
