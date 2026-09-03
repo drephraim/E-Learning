@@ -1,36 +1,53 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import { AuthProvider } from './AuthContext';
 import ProtectedRoute from './ProtectedRoute';
 
-import Landing from './Landing';
-import Auth from './Auth';
-import Dashboard from './Dashboard';
-import CourseView from './CourseView';
-import Profile from './Profile';
-import Explore from './Explore';
+// Lazy-loaded Student components
+const Landing = lazy(() => import('./Landing'));
+const Auth = lazy(() => import('./Auth'));
+const Dashboard = lazy(() => import('./Dashboard'));
+const CourseView = lazy(() => import('./CourseView'));
+const Profile = lazy(() => import('./Profile'));
+const Explore = lazy(() => import('./Explore'));
 
-// Lecturer components
-import LecturerLayout from './lecturer/LecturerLayout';
-import LecturerDashboard from './lecturer/LecturerDashboard';
-import LecturerCourses from './lecturer/LecturerCourses';
-import CourseDetails from './lecturer/CourseDetails';
-import LecturerMaterials from './lecturer/LecturerMaterials';
-import MaterialDetails from './lecturer/MaterialDetails';
-import LecturerSyllabi from './lecturer/LecturerSyllabi';
-import SyllabusDetails from './lecturer/SyllabusDetails';
-import LecturerStudents from './lecturer/LecturerStudents';
-import LecturerProfile from './lecturer/LecturerProfile';
-import LecturerValidation from './lecturer/LecturerValidation';
-import LecturerAnalytics from './lecturer/LecturerAnalytics';
-import LecturerPlaceholder from './lecturer/LecturerPlaceholder';
+// Lazy-loaded Lecturer components
+const LecturerLayout = lazy(() => import('./lecturer/LecturerLayout'));
+const LecturerDashboard = lazy(() => import('./lecturer/LecturerDashboard'));
+const LecturerCourses = lazy(() => import('./lecturer/LecturerCourses'));
+const CourseDetails = lazy(() => import('./lecturer/CourseDetails'));
+const LecturerMaterials = lazy(() => import('./lecturer/LecturerMaterials'));
+const MaterialDetails = lazy(() => import('./lecturer/MaterialDetails'));
+const LecturerSyllabi = lazy(() => import('./lecturer/LecturerSyllabi'));
+const SyllabusDetails = lazy(() => import('./lecturer/SyllabusDetails'));
+const LecturerStudents = lazy(() => import('./lecturer/LecturerStudents'));
+const LecturerProfile = lazy(() => import('./lecturer/LecturerProfile'));
+const LecturerValidation = lazy(() => import('./lecturer/LecturerValidation'));
+const LecturerAnalytics = lazy(() => import('./lecturer/LecturerAnalytics'));
+const LecturerPlaceholder = lazy(() => import('./lecturer/LecturerPlaceholder'));
+
+const PageFallback = () => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    background: 'var(--bg, #0c0e12)',
+    color: 'var(--text-muted, #8b8d98)',
+    fontSize: '0.9rem',
+    fontWeight: 600
+  }}>
+    Loading...
+  </div>
+);
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
@@ -197,6 +214,7 @@ function App() {
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/auth" replace />} />
         </Routes>
+        </Suspense>
       </Router>
     </AuthProvider>
   );

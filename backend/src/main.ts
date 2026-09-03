@@ -13,8 +13,12 @@ async function bootstrap() {
   // Enable full CORS for frontend connections
   app.enableCors({ origin: true, credentials: true }); 
   
-  // Serve static assets from uploads directory
-  app.useStaticAssets(path.join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  // Serve static assets from uploads directory with browser caching enabled
+  app.useStaticAssets(path.join(process.cwd(), 'uploads'), { 
+    prefix: '/uploads',
+    maxAge: '1d',
+    etag: true,
+  });
   
   const port = process.env.PORT || 3000;
   await app.listen(port);

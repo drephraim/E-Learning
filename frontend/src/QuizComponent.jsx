@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ThumbsUp, ThumbsDown, Meh } from 'lucide-react';
+import { CheckCircle2, AlertCircle, HelpCircle, ShieldCheck } from 'lucide-react';
 
 const CONFIDENCE_OPTIONS = [
-  { value: 1, label: 'Guessing', icon: ThumbsDown, color: '#ef4444' },
-  { value: 2, label: 'Uncertain', icon: ThumbsDown, color: '#f59e0b' },
-  { value: 3, label: 'Okay', icon: Meh, color: '#e8884a' },
-  { value: 4, label: 'Confident', icon: ThumbsUp, color: '#4ade80' },
-  { value: 5, label: 'Nailed it', icon: ThumbsUp, color: '#22c55e' },
+  { value: 1, label: 'Low Confidence', icon: AlertCircle, color: '#ef4444' },
+  { value: 2, label: 'Uncertain', icon: HelpCircle, color: '#f59e0b' },
+  { value: 3, label: 'Moderate', icon: HelpCircle, color: '#e8884a' },
+  { value: 4, label: 'High Confidence', icon: CheckCircle2, color: '#3b82f6' },
+  { value: 5, label: 'Mastered', icon: ShieldCheck, color: '#10b981' },
 ];
 
 export default function QuizComponent({ quizzes, userProgress, onSave }) {

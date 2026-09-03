@@ -209,21 +209,8 @@
 }
 
 .stat-glow-bg {
-  position: absolute;
-  top: -40px;
-  right: -40px;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  filter: blur(40px);
-  opacity: 0.15;
-  pointer-events: none;
+  display: none;
 }
-
-.profile-stat-card-glowing:nth-child(1) .stat-glow-bg { background: #8b5cf6; }
-.profile-stat-card-glowing:nth-child(2) .stat-glow-bg { background: #10b981; }
-.profile-stat-card-glowing:nth-child(3) .stat-glow-bg { background: #f59e0b; }
-.profile-stat-card-glowing:nth-child(4) .stat-glow-bg { background: #ec4899; }
 
 .stat-icon-circle {
   width: 48px;

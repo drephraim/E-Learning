@@ -66,15 +66,15 @@ const LecturerSidebar = ({ onOpenUploadModal }) => {
           </div>
 
           <div style={{
-            margin: '12px 16px 20px',
-            padding: '6px 10px',
+            margin: '4px 6px 10px',
+            padding: '4px 8px',
             background: 'rgba(99, 102, 241, 0.12)',
             border: '1px solid rgba(99, 102, 241, 0.25)',
-            borderRadius: '8px',
-            fontSize: '0.7rem',
+            borderRadius: '6px',
+            fontSize: '0.68rem',
             fontWeight: 700,
             color: '#818cf8',
-            letterSpacing: '0.06em',
+            letterSpacing: '0.05em',
             textTransform: 'uppercase',
             textAlign: 'center'
           }}>
@@ -91,7 +91,7 @@ const LecturerSidebar = ({ onOpenUploadModal }) => {
                   className={`nav-item ${active ? 'active' : ''}`}
                   onClick={() => navigate(item.path)}
                 >
-                  <Icon size={18} />
+                  <Icon size={16} />
                   <span>{item.label}</span>
                 </div>
               );
@@ -102,7 +102,7 @@ const LecturerSidebar = ({ onOpenUploadModal }) => {
         <div className="sidebar-bottom">
           <div className="user-profile">
             <div className="avatar" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-              👨‍🏫
+              <GraduationCap size={16} color="white" />
             </div>
             <div className="user-info">
               <div className="user-name" title={lecturerName}>{lecturerName}</div>

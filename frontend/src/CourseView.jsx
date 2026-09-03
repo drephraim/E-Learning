@@ -10,43 +10,10 @@ import CodeRunner from './CodeRunner';
 import jsPDF from 'jspdf';
 import { auth } from './firebase';
 import { API_BASE_URL } from './config';
+import { Lock, CheckCircle2, Star, Award, BookOpen, ArrowLeft, ChevronRight } from 'lucide-react';
 import './CourseView.css';
 
-const CustomConfetti = () => {
-  const pieces = Array.from({ length: 120 });
-  const colors = ['#f43f5e', '#3b82f6', '#10b981', '#eab308', '#a855f7', '#f97316'];
-  
-  return (
-    <div className="custom-confetti-container">
-      {pieces.map((_, i) => {
-        const left = Math.random() * 100;
-        const delay = Math.random() * 5;
-        const duration = 3 + Math.random() * 4;
-        const size = 6 + Math.random() * 8;
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        const shape = Math.random() > 0.5 ? '50%' : '0%';
-        const rotationStart = Math.random() * 360;
-        
-        return (
-          <div
-            key={i}
-            className="custom-confetti-piece"
-            style={{
-              left: `${left}%`,
-              width: size,
-              height: size,
-              backgroundColor: color,
-              borderRadius: shape,
-              animationDelay: `${delay}s`,
-              animationDuration: `${duration}s`,
-              transform: `rotate(${rotationStart}deg)`
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-};
+const CompletionBanner = () => null;
 
 const CustomStars = ({ count = 5, value, onChange, size = 32, color2 = '#fbbf24', color1 = '#e4e5e9', edit = true }) => {
   const [hoverValue, setHoverValue] = useState(null);
@@ -400,9 +367,6 @@ export default function CourseView() {
   return (
     <div className="courseview-layout">
 
-      {/* Confetti for completion */}
-      {isCompleted && <CustomConfetti />}
-
       {/* Completion Modal */}
       {showCompletionModal && (
         <div style={{
@@ -412,12 +376,12 @@ export default function CourseView() {
           padding: 20
         }}>
           <div style={{
-            background: 'var(--bg-card)', borderRadius: 24, padding: 40,
-            maxWidth: 600, width: '100%', maxHeight: '90vh', overflowY: 'auto'
+            background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 32,
+            maxWidth: 580, width: '100%', maxHeight: '90vh', overflowY: 'auto'
           }}>
-            <h2 style={{ fontSize: '2rem', marginBottom: 8 }}>🎉 Course Completed!</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-              Congratulations on completing "{course?.title}"!
+            <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Course Completed</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: 24 }}>
+              You have successfully completed "{course?.title}".
             </p>
 
             {/* Stats */}
@@ -625,12 +589,13 @@ export default function CourseView() {
                 onClick={() => isEnrolled && setActiveModuleIndex(idx)}
                 className={`chapter-node ${idx === activeModuleIndex && isEnrolled ? 'active' : ''} ${!isEnrolled ? 'locked' : ''}`}
               >
-                <div className="chapter-num">
-                  {isComplete ? '✓ ' : ''}Chapter {idx + 1}
+                <div className="chapter-num" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {isComplete && <CheckCircle2 size={13} color="var(--green, #10b981)" />}
+                  Chapter {idx + 1}
                 </div>
                 <div className="chapter-title-row">
                   <span>{mod.title}</span>
-                  {!isEnrolled && <span>🔒</span>}
+                  {!isEnrolled && <Lock size={13} color="var(--text-muted)" style={{ flexShrink: 0, marginLeft: 6 }} />}
                 </div>
               </div>
             );

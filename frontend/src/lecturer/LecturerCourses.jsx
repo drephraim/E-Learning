@@ -209,16 +209,21 @@ const LecturerCourses = () => {
                   }}>
                     <button
                       onClick={() => navigate(`/course/${course.id}`)}
-                      className="form-input"
                       style={{
                         flex: 1,
-                        fontSize: '0.8rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
                         padding: '8px 12px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 6,
-                        background: 'rgba(255,255,255,0.04)'
+                        background: 'var(--bg-elevated, #1c1f2e)',
+                        border: '1px solid var(--border, #2a2d3a)',
+                        borderRadius: '8px',
+                        color: '#e2e8f0',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
                       }}
                     >
                       <Eye size={14} color="#818cf8" /> Student View

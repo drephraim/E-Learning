@@ -4,7 +4,7 @@ import CourseModal from './CourseModal';
 import { auth } from './firebase';
 import Sidebar from './Sidebar';
 import './Dashboard.css';
-import { Sparkles, BookOpen, Award, Clock, TrendingUp, Play, Trash2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, BookOpen, Award, Clock, TrendingUp, Play, Trash2, Plus, ChevronLeft, ChevronRight, CheckCircle2, Star } from 'lucide-react';
 import { API_BASE_URL } from './config';
 
 // --- Sub-components ---
@@ -165,7 +165,7 @@ const CourseCard = ({ course, onDelete }) => {
             padding: '4px 8px', borderRadius: 6, fontSize: '0.75rem',
             fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4
           }}>
-            ✓ Completed
+            <CheckCircle2 size={12} color="white" /> Completed
           </div>
         )}
         <button
@@ -190,7 +190,9 @@ const CourseCard = ({ course, onDelete }) => {
             <span className="course-tag green">{progressPercent}%</span>
           ) : null}
           {course.averageRating > 0 && (
-            <span className="course-tag orange">★ {course.averageRating}</span>
+            <span className="course-tag orange" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Star size={11} fill="#f59e0b" color="#f59e0b" /> {course.averageRating}
+            </span>
           )}
         </div>
         <h3 className="course-title">{course.title}</h3>

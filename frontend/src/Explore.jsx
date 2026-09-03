@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { auth } from './firebase';
 import Sidebar from './Sidebar';
 import './Dashboard.css';
-import { BookOpen, Play, Trash2, GraduationCap, Download, FileText, Sparkles, Folder } from 'lucide-react';
+import { BookOpen, Play, Trash2, GraduationCap, Download, FileText, Sparkles, Folder, CheckCircle2, Star } from 'lucide-react';
 import { API_BASE_URL } from './config';
 import InstitutionalCourseHubModal from './InstitutionalCourseHubModal';
 
@@ -32,7 +32,7 @@ const CourseCard = ({ course, onDelete }) => {
             padding: '4px 8px', borderRadius: 6, fontSize: '0.75rem',
             fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4
           }}>
-            ✓ Completed
+            <CheckCircle2 size={12} color="white" /> Completed
           </div>
         )}
         <button className="play-button"><Play size={14} /></button>
@@ -53,7 +53,9 @@ const CourseCard = ({ course, onDelete }) => {
         <div className="course-tags">
           <span className="course-tag purple">{course.targetDifficulty || 'BEGINNER'}</span>
           {course.averageRating > 0 && (
-            <span className="course-tag orange">★ {course.averageRating}</span>
+            <span className="course-tag orange" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Star size={11} fill="#f59e0b" color="#f59e0b" /> {course.averageRating}
+            </span>
           )}
           {isCompleted && (
             <span className="course-tag green">Completed</span>
@@ -151,8 +153,8 @@ export default function Explore() {
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <GraduationCap size={20} color="#818cf8" /> Institutional Department Courses & Files ({institutionalCourses.length})
                 </h2>
-                <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>
-                  ✓ Downloadable Notes & Syllabi
+                <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <CheckCircle2 size={13} color="#34d399" /> Downloadable Notes & Syllabi
                 </span>
               </div>
 

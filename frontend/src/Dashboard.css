@@ -443,35 +443,21 @@
 
 /* Daily Recommendation Banner */
 .daily-recommendation-banner {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.65) 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-top: 2px solid var(--orange);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-  border-radius: 16px;
-  padding: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--orange);
+  border-radius: 12px;
+  padding: 28px;
   margin-bottom: 32px;
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.daily-recommendation-banner::before {
-  content: '';
-  position: absolute;
-  top: -150px;
-  right: -150px;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(240, 149, 90, 0.08) 0%, rgba(240, 149, 90, 0) 70%);
-  pointer-events: none;
+  transition: border-color 0.2s ease;
 }
 
 .daily-recommendation-banner:hover {
-  border-color: rgba(240, 149, 90, 0.4);
+  border-color: var(--text-muted);
 }
 
 .recommendation-badge {
@@ -481,14 +467,13 @@
   background: var(--orange-dim);
   color: var(--orange);
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
-  padding: 5px 12px;
-  border-radius: 20px;
-  margin-bottom: 20px;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-bottom: 16px;
   align-self: flex-start;
-  box-shadow: 0 0 15px rgba(240, 149, 90, 0.15);
 }
 
 .recommendation-content {

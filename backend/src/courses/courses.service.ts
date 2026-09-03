@@ -1069,7 +1069,8 @@ ${openAlexPapers.map((paper, idx) =>
     ${institutionalPromptContext}
     ${openAlexPromptContext}
     Create a syllabus with exactly ${dto.chapters} chapters that is appropriate for a ${cognitiveState} learner.
-    CRITICAL: Output ONLY a valid raw JSON object starting with '{' and ending with '}'. Do NOT include markdown code blocks, bold titles (such as **Curriculum Outline**), commentary, or notes outside the JSON structure.
+    CRITICAL TITLING MANDATE: Each of the ${dto.chapters} chapters MUST have a unique, distinct, and descriptive title covering a specific phase or sub-topic (e.g., Chapter 1: Introduction & Theoretical Foundations, Chapter 2: Core Mechanics & Architecture, Chapter 3: Advanced Optimization & Implementation). NEVER repeat identical titles or generic names across chapters.
+    CRITICAL FORMAT: Output ONLY a valid raw JSON object starting with '{' and ending with '}'. Do NOT include markdown code blocks, bold titles, commentary, or notes outside the JSON structure.
     Return strictly JSON in this format: 
     { 
       "courseTitle": "String", 
@@ -1117,15 +1118,25 @@ ${openAlexPapers.map((paper, idx) =>
         }
       }
 
+      const defaultSubTopics = [
+        'Introduction & Core Foundations',
+        'Architecture & Design Mechanics',
+        'Practical Workflows & Technical Implementation',
+        'Advanced Optimization & Enterprise Security',
+        'Production Deployment & Case Studies',
+        'Performance Scaling & Systems Integration'
+      ];
+
       if (!outlineData || !Array.isArray(outlineData.chapters) || outlineData.chapters.length === 0) {
         this.logger.warn(`Outline parsing produced empty or invalid structure. Creating robust fallback outline...`);
         const chapterCount = dto.chapters || 4;
         const generatedChapters = [];
         for (let i = 1; i <= chapterCount; i++) {
+          const subTopic = defaultSubTopics[(i - 1) % defaultSubTopics.length];
           generatedChapters.push({
-            title: `Chapter ${i}: ${dto.topic} Core Concepts (Part ${i})`,
-            searchQuery: `${dto.topic} chapter ${i} explanation`,
-            youtubeSearchQuery: `${dto.topic} tutorial ${i}`
+            title: `Chapter ${i}: ${dto.topic} - ${subTopic}`,
+            searchQuery: `${dto.topic} ${subTopic} explanation`,
+            youtubeSearchQuery: `${dto.topic} ${subTopic} tutorial`
           });
         }
         outlineData = {
@@ -1133,6 +1144,27 @@ ${openAlexPapers.map((paper, idx) =>
           coverTheme: { tag: dto.topic },
           chapters: generatedChapters
         };
+      } else {
+        // Enforce strict chapter title deduplication and formatting
+        const seenTitles = new Set<string>();
+        outlineData.chapters = outlineData.chapters.map((ch: any, i: number) => {
+          let rawTitle = ch.title ? String(ch.title).trim() : '';
+          rawTitle = rawTitle.replace(/^Chapter\s+\d+:\s*/i, '').trim();
+
+          if (!rawTitle || seenTitles.has(rawTitle.toLowerCase())) {
+            const subTopic = defaultSubTopics[i % defaultSubTopics.length];
+            rawTitle = `${dto.topic} - ${subTopic}`;
+          }
+
+          seenTitles.add(rawTitle.toLowerCase());
+          const distinctTitle = `Chapter ${i + 1}: ${rawTitle}`;
+          seenTitles.add(distinctTitle.toLowerCase());
+
+          return {
+            ...ch,
+            title: distinctTitle
+          };
+        });
       }
 
       // 2. Generate Cover
@@ -1466,6 +1498,7 @@ Return strictly JSON matching this schema:
       await this.prisma.module.update({
         where: { id: targetModule.id },
         data: {
+          title: chapter.title || targetModule.title,
           content: finalContent,
           youtubeUrl: youtubeUrl,
           learningAids: { create: learningAidsData }
