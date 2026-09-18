@@ -238,6 +238,8 @@ const CourseModal = ({ isOpen, onClose }) => {
   const syllabusMaterial = materialsData.materials.find((m) => m.isSyllabusOrOutline);
   const otherMaterials = materialsData.materials.filter((m) => !m.isSyllabusOrOutline);
 
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={isGenerating ? undefined : onClose}>
       <div className="modal-container" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>

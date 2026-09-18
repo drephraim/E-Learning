@@ -13,7 +13,6 @@ import {
   UploadCloud, 
   Clock, 
   Building2, 
-  Sparkles,
   ChevronRight,
   Globe,
   Lock,
@@ -90,10 +89,6 @@ const LecturerDashboard = () => {
     <div className="lecturer-content">
       {/* Header Greeting Banner */}
       <div>
-        <div className="lecturer-header-badge">
-          <Sparkles size={12} /> Institutional Portal • Phase 2
-        </div>
-
         <div className="lecturer-title-row">
           <div>
             <h1 className="lecturer-greeting">{getTimeGreeting()}, {displayName}</h1>

@@ -54,6 +54,20 @@
   gap: 8px;
 }
 
+.auth-success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* --- Role Selector Tabs (Student vs Lecturer) --- */
 .auth-role-tabs {
   display: flex;
@@ -158,6 +172,47 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #cbd5e1;
+}
+
+.form-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.forgot-password-link {
+  background: transparent;
+  border: none;
+  color: #818cf8;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.forgot-password-link:hover {
+  color: #a78bfa;
+  text-decoration: underline;
+}
+
+.btn-back-signin {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #94a3b8;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-back-signin:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
 }
 
 .form-input,

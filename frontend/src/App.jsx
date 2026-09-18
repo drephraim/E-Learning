@@ -4,9 +4,8 @@ import './App.css';
 import { AuthProvider } from './AuthContext';
 import ProtectedRoute from './ProtectedRoute';
 
-// Lazy-loaded Student components
-const Landing = lazy(() => import('./Landing'));
-const Auth = lazy(() => import('./Auth'));
+import Landing from './Landing';
+import Auth from './Auth';
 const Dashboard = lazy(() => import('./Dashboard'));
 const CourseView = lazy(() => import('./CourseView'));
 const Profile = lazy(() => import('./Profile'));

@@ -3,7 +3,9 @@ import { auth, googleProvider } from './firebase';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  signInWithPopup 
+  signInWithPopup,
+  signOut,
+  sendPasswordResetEmail
 } from "firebase/auth";
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from './config';
@@ -14,9 +16,11 @@ const Auth = () => {
   const navigate = useNavigate();
   const { setDbUser } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [role, setRole] = useState('STUDENT'); // 'STUDENT' | 'LECTURER'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Form Fields
   const [fullName, setFullName] = useState('');
@@ -45,11 +49,25 @@ const Auth = () => {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        await signOut(auth).catch(() => {});
         throw new Error(body.message || `Server responded with ${response.status}`);
       }
 
       const resData = await response.json();
-      const userObj = resData.user;
+      const userObj = resData?.user;
+
+      if (!userObj) {
+        await signOut(auth).catch(() => {});
+        throw new Error('User sync failed. No user profile returned.');
+      }
+
+      // Safety check: ensure user role matches active tab role
+      if (userObj.role && userObj.role.toUpperCase() !== role.toUpperCase()) {
+        await signOut(auth).catch(() => {});
+        const registeredRoleLabel = userObj.role.toUpperCase() === 'STUDENT' ? 'Student' : 'Lecturer';
+        throw new Error(`This account is registered as a ${registeredRoleLabel}. Please select the ${registeredRoleLabel} tab to sign in.`);
+      }
+
       setDbUser(userObj);
 
       // Route based on user role
@@ -60,12 +78,42 @@ const Auth = () => {
         navigate('/dashboard');
       }
     } catch (err) {
+      await signOut(auth).catch(() => {});
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
         setError('Cannot reach backend server. Please verify the backend is running.');
       } else {
-        setError('Authentication error: ' + err.message);
+        setError(err.message.replace('Firebase:', '').trim());
       }
       console.error('Sync error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMessage('');
+
+    if (!email.trim() || !email.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setSuccessMessage('Password reset email sent! Please check your inbox (and spam folder) for reset instructions.');
+    } catch (err) {
+      if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email address.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else {
+        setError(err.message.replace('Firebase:', '').trim());
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -84,6 +132,12 @@ const Auth = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
+
+    if (isForgotPassword) {
+      return handleForgotPassword(e);
+    }
+
     setLoading(true);
 
     if (isLogin) {
@@ -149,6 +203,7 @@ const Auth = () => {
 
   const handleGoogleAuth = async () => {
     setError('');
+    setSuccessMessage('');
     setLoading(true);
     try {
       const userCredential = await signInWithPopup(auth, googleProvider);
@@ -169,9 +224,11 @@ const Auth = () => {
               Adaptive<span style={{ color: '#818cf8' }}>Learn</span>
             </div>
             <p className="auth-subtitle">
-              {isLogin 
-                ? `Sign in to your ${role === 'STUDENT' ? 'Student' : 'Lecturer'} account` 
-                : `Create your ${role === 'STUDENT' ? 'Student' : 'Lecturer'} profile`
+              {isForgotPassword
+                ? `Reset password for your ${role === 'STUDENT' ? 'Student' : 'Lecturer'} account`
+                : isLogin 
+                  ? `Sign in to your ${role === 'STUDENT' ? 'Student' : 'Lecturer'} account` 
+                  : `Create your ${role === 'STUDENT' ? 'Student' : 'Lecturer'} profile`
               }
             </p>
           </div>
@@ -181,7 +238,7 @@ const Auth = () => {
             <button
               type="button"
               className={`role-tab ${role === 'STUDENT' ? 'active student' : ''}`}
-              onClick={() => { setRole('STUDENT'); setError(''); }}
+              onClick={() => { setRole('STUDENT'); setError(''); setSuccessMessage(''); }}
             >
               <span className="role-tab-icon">🎓</span>
               <span className="role-tab-text">Student</span>
@@ -190,7 +247,7 @@ const Auth = () => {
             <button
               type="button"
               className={`role-tab ${role === 'LECTURER' ? 'active lecturer' : ''}`}
-              onClick={() => { setRole('LECTURER'); setError(''); }}
+              onClick={() => { setRole('LECTURER'); setError(''); setSuccessMessage(''); }}
             >
               <span className="role-tab-icon">👨‍🏫</span>
               <span className="role-tab-text">Lecturer</span>
@@ -198,22 +255,31 @@ const Auth = () => {
           </div>
 
           {/* Mode Switcher Tabs (Sign In vs Sign Up) */}
-          <div className="auth-mode-switch">
-            <button 
-              type="button"
-              className={`mode-btn ${isLogin ? 'active' : ''}`}
-              onClick={() => { setIsLogin(true); setError(''); }}
-            >
-              Sign In
-            </button>
-            <button 
-              type="button"
-              className={`mode-btn ${!isLogin ? 'active' : ''}`}
-              onClick={() => { setIsLogin(false); setError(''); }}
-            >
-              Sign Up
-            </button>
-          </div>
+          {!isForgotPassword && (
+            <div className="auth-mode-switch">
+              <button 
+                type="button"
+                className={`mode-btn ${isLogin ? 'active' : ''}`}
+                onClick={() => { setIsLogin(true); setError(''); setSuccessMessage(''); }}
+              >
+                Sign In
+              </button>
+              <button 
+                type="button"
+                className={`mode-btn ${!isLogin ? 'active' : ''}`}
+                onClick={() => { setIsLogin(false); setError(''); setSuccessMessage(''); }}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
+
+          {/* Success Message Box */}
+          {successMessage && (
+            <div className="auth-success">
+              <span>✅ {successMessage}</span>
+            </div>
+          )}
 
           {/* Error Message Box */}
           {error && (
@@ -224,7 +290,36 @@ const Auth = () => {
 
           {/* Main Auth Form */}
           <form onSubmit={handleSubmit} className="auth-form">
-            {isLogin ? (
+            {isForgotPassword ? (
+              /* ================= FORGOT PASSWORD FORM ================= */
+              <>
+                <div className="form-group">
+                  <label>REGISTERED EMAIL ADDRESS</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={role === 'STUDENT' ? "student@university.edu" : "lecturer@university.edu"}
+                    className="form-input"
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={loading} 
+                  className={`btn btn-primary auth-submit ${role === 'LECTURER' ? 'lecturer-btn' : ''}`}
+                >
+                  {loading ? 'Sending Reset Link...' : 'Send Password Reset Link'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => { setIsForgotPassword(false); setError(''); setSuccessMessage(''); }}
+                  className="btn-back-signin"
+                >
+                  ← Back to Sign In
+                </button>
+              </>
+            ) : isLogin ? (
               /* ================= SIGN IN FORM ================= */
               <>
                 <div className="form-group">
@@ -239,7 +334,20 @@ const Auth = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>PASSWORD</label>
+                  <div className="form-group-header">
+                    <label>PASSWORD</label>
+                    <button 
+                      type="button" 
+                      className="forgot-password-link"
+                      onClick={() => {
+                        setIsForgotPassword(true);
+                        setError('');
+                        setSuccessMessage('');
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                   <input 
                     type="password"
                     required

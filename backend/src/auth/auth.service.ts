@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface SyncUserDto {
@@ -28,77 +28,127 @@ export class AuthService {
   constructor(private prisma: PrismaService) {}
 
   async syncUserWithDatabase(dto: SyncUserDto) {
-    this.logger.log(`Syncing user ${dto.email} (UID: ${dto.uid}, Role: ${dto.role || 'STUDENT'}) to database...`);
+    this.logger.log(`Syncing user ${dto.email} (UID: ${dto.uid}, Requested Role: ${dto.role || 'Unspecified'}) to database...`);
 
-    const role = (dto.role || 'STUDENT').toUpperCase();
+    const cleanEmail = dto.email.trim().toLowerCase();
     const cleanStr = (s?: string) => (s && s !== 'undefined' && s !== 'null' ? s.trim() : undefined);
     const firstName = cleanStr(dto.firstName);
     const lastName = cleanStr(dto.lastName);
     const nameInput = cleanStr(dto.name);
-    const fullName = nameInput || [firstName, lastName].filter(Boolean).join(' ') || dto.email.split('@')[0];
+    const fullName = nameInput || [firstName, lastName].filter(Boolean).join(' ') || cleanEmail.split('@')[0];
 
     try {
-      // Upsert main User record
-      const user = await this.prisma.user.upsert({
-        where: { id: dto.uid },
-        update: {
-          email: dto.email,
-          name: fullName,
-          firstName: firstName || undefined,
-          lastName: lastName || undefined,
-          role: role,
-          institution: cleanStr(dto.institution) || undefined,
+      // Find existing user by ID or Email
+      let existingUser = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: dto.uid },
+            { email: cleanEmail },
+          ],
         },
-        create: {
-          id: dto.uid,
-          email: dto.email,
-          name: fullName,
-          firstName: firstName || null,
-          lastName: lastName || null,
-          role: role,
-          institution: cleanStr(dto.institution) || null,
+        include: {
+          studentProfile: true,
+          lecturerProfile: true,
         },
       });
 
-      // Handle student profile creation/update
-      if (role === 'STUDENT' && dto.studentProfile) {
-        await this.prisma.studentProfile.upsert({
-          where: { userId: user.id },
-          update: {
-            programme: dto.studentProfile.programme,
-            level: dto.studentProfile.level,
+      let effectiveRole: string;
+
+      if (existingUser) {
+        // Check role mismatch if dto.role was explicitly passed
+        if (dto.role) {
+          const requestedRole = dto.role.toUpperCase();
+          const currentRole = existingUser.role.toUpperCase();
+          if (requestedRole !== currentRole) {
+            const registeredRoleLabel = currentRole === 'STUDENT' ? 'Student' : 'Lecturer';
+            const message = `This account is registered as a ${registeredRoleLabel}. Please select the ${registeredRoleLabel} tab to sign in.`;
+            this.logger.warn(`Role mismatch for ${cleanEmail}: requested ${requestedRole}, registered as ${currentRole}`);
+            throw new BadRequestException(message);
+          }
+        }
+
+        effectiveRole = existingUser.role.toUpperCase();
+
+        // Update existing user without changing role
+        await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            email: cleanEmail,
+            name: fullName || existingUser.name,
+            firstName: firstName || existingUser.firstName,
+            lastName: lastName || existingUser.lastName,
+            institution: cleanStr(dto.institution) || existingUser.institution,
           },
-          create: {
-            userId: user.id,
-            programme: dto.studentProfile.programme,
-            level: dto.studentProfile.level,
+        });
+      } else {
+        // Create new user
+        effectiveRole = (dto.role || 'STUDENT').toUpperCase();
+
+        existingUser = await this.prisma.user.create({
+          data: {
+            id: dto.uid,
+            email: cleanEmail,
+            name: fullName,
+            firstName: firstName || null,
+            lastName: lastName || null,
+            role: effectiveRole,
+            institution: cleanStr(dto.institution) || null,
+          },
+          include: {
+            studentProfile: true,
+            lecturerProfile: true,
           },
         });
       }
 
-      // Handle lecturer profile creation/update
-      if (role === 'LECTURER' && dto.lecturerProfile) {
-        await this.prisma.lecturerProfile.upsert({
-          where: { userId: user.id },
+      // Handle student profile creation/update ONLY if user's effectiveRole is STUDENT
+      if (effectiveRole === 'STUDENT') {
+        const studentData = dto.studentProfile || {
+          programme: cleanStr(dto.institution) || 'General Student',
+          level: 'Level 100',
+        };
+        await this.prisma.studentProfile.upsert({
+          where: { userId: existingUser.id },
           update: {
-            title: dto.lecturerProfile.title,
-            department: dto.lecturerProfile.department,
-            specialization: dto.lecturerProfile.specialization || null,
-            verificationStatus: dto.lecturerProfile.verificationStatus || 'VERIFIED',
+            programme: studentData.programme,
+            level: studentData.level,
           },
           create: {
-            userId: user.id,
-            title: dto.lecturerProfile.title,
-            department: dto.lecturerProfile.department,
-            specialization: dto.lecturerProfile.specialization || null,
-            verificationStatus: dto.lecturerProfile.verificationStatus || 'VERIFIED',
+            userId: existingUser.id,
+            programme: studentData.programme,
+            level: studentData.level,
+          },
+        });
+      }
+
+      // Handle lecturer profile creation/update ONLY if user's effectiveRole is LECTURER
+      if (effectiveRole === 'LECTURER') {
+        const lecturerData = dto.lecturerProfile || {
+          title: 'Dr.',
+          department: cleanStr(dto.institution) || 'General',
+          specialization: null,
+          verificationStatus: 'VERIFIED',
+        };
+        await this.prisma.lecturerProfile.upsert({
+          where: { userId: existingUser.id },
+          update: {
+            title: lecturerData.title,
+            department: lecturerData.department,
+            specialization: lecturerData.specialization || null,
+            verificationStatus: lecturerData.verificationStatus || 'VERIFIED',
+          },
+          create: {
+            userId: existingUser.id,
+            title: lecturerData.title,
+            department: lecturerData.department,
+            specialization: lecturerData.specialization || null,
+            verificationStatus: lecturerData.verificationStatus || 'VERIFIED',
           },
         });
       }
 
       // Automatically link pending course invitations for student email
-      if (dto.email) {
-        const cleanEmail = dto.email.trim().toLowerCase();
+      if (cleanEmail && effectiveRole === 'STUDENT') {
         try {
           const pendingInvites = await this.prisma.courseEnrollment.findMany({
             where: { studentEmail: cleanEmail },
@@ -107,14 +157,14 @@ export class AuthService {
           for (const invite of pendingInvites) {
             await this.prisma.courseEnrollment.update({
               where: { id: invite.id },
-              data: { studentId: user.id, status: 'ENROLLED' },
+              data: { studentId: existingUser.id, status: 'ENROLLED' },
             });
 
             await this.prisma.userCourseProgress.upsert({
-              where: { userId_courseId: { userId: user.id, courseId: invite.courseId } },
+              where: { userId_courseId: { userId: existingUser.id, courseId: invite.courseId } },
               update: {},
               create: {
-                userId: user.id,
+                userId: existingUser.id,
                 courseId: invite.courseId,
                 isCompleted: false,
                 totalTimeSpentSeconds: 0,
@@ -128,7 +178,7 @@ export class AuthService {
 
       // Fetch complete user with profiles
       const fullUser = await this.prisma.user.findUnique({
-        where: { id: user.id },
+        where: { id: existingUser.id },
         include: {
           studentProfile: true,
           lecturerProfile: true,
@@ -137,18 +187,8 @@ export class AuthService {
 
       return { status: 'success', user: fullUser };
     } catch (err: any) {
-      if (err.code === 'P2002' && err.meta?.target?.includes('email')) {
-        this.logger.warn(`Email ${dto.email} already registered. Fetching existing record.`);
-        const existing = await this.prisma.user.findUnique({
-          where: { email: dto.email },
-          include: {
-            studentProfile: true,
-            lecturerProfile: true,
-          },
-        });
-        if (existing) {
-          return { status: 'success', user: existing };
-        }
+      if (err instanceof BadRequestException) {
+        throw err;
       }
       this.logger.error(`Failed to sync user ${dto.email}: ${err.message}`);
       throw err;
