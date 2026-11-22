@@ -31,13 +31,13 @@ cp .env.example .env
 Ensure your `backend/.env` contains the required database URL and API keys:
 
 ```env
-DATABASE_URL="postgresql://neondb_owner:npg_6Bp2SLuqGhQU@100.51.95.243:5432/neondb?sslmode=require&options=endpoint%3Dep-royal-salad-anihxqyx-pooler"
+DATABASE_URL="postgresql://DB_USER:DB_PASSWORD@DB_HOST:5432/DB_NAME?sslmode=require"
 
 GEMINI_API_KEY="<your_gemini_api_key>"
 GROQ_API_KEY="<your_groq_api_key>"
 TAVILY_API_KEY="<your_tavily_api_key>"
 YOUTUBE_API_KEY="<your_youtube_api_key>"
-OPENALEX_API_KEY="7aRpYl0NULfjYvalbsyrd5"
+OPENALEX_API_KEY="your_openalex_api_key"
 ```
 
 ### 3. Installing Dependencies & Running Backend
